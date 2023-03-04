@@ -29,14 +29,16 @@ function satPhase(P_kbar, T_C, bulk)
 
 function PT_minimisation(P_kbar, T_C, bulk)
 
-		gv, DB = init_MAGEMin();
+		gv, z_b, DB, splx_data = init_MAGEMin();
 		sys_in = "wt";
 
 		gv.verbose = -1;
 
 		new_bulk = bulk/sum(bulk);
-		
-		out = point_wise_minimization(P_kbar, T_C, new_bulk, gv, DB, sys_in);
+
+		gv = define_bulk_rock(gv, new_bulk);		
+
+		out = point_wise_minimization(P_kbar, T_C, gv, z_b DB, splx_data, sys_in);
 		Phase = out.ph
 		Oxides = out.oxides
 		if "liq" in Phase
