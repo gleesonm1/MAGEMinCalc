@@ -47,11 +47,11 @@ function PT_minimisation(P_kbar, T_C, bulk)
     			Liq_Frac = out.ph_frac_wt[Liq_index]
 		
 			finalize_MAGEMin(gv,DB);
-    			Ret = ("Phase", Phase, "Oxides", Oxides, "Liq_Comp", Liq_Comp, "Liq_Frac", Liq_Frac)
-    			return Ret
+			Ret = Dict("Phase" => Phase, "Oxides" => Oxides, "Liq_Comp" => Liq_Comp, "Liq_Frac" => Liq_Frac)
+			return Ret
 		else
     			finalize_MAGEMin(gv, DB);
-    			Ret = ("Phase", Phase, "Oxides", Oxides)
-    			return Ret
+			Ret = Dict("Phase" => Phase, "Oxides" => Oxides)
+			return Ret
 		end
 	end
