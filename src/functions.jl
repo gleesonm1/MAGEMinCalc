@@ -50,10 +50,14 @@ function PT_minimisation(P_kbar, T_C, bulk)
 		
 			for p in unique_phases
 				index = findfirst(x -> occursin(string(p), x), unique_phases);
-				Comp = out.SS_vec[index].Comp_wt;
-				Frac = out.ph_frac_wt[index];
+				Frac = out.ph_frac_wt[index];				
+				if index < length(out.SS_vec) + 1
+					Comp = out.SS_vec[index].Comp_wt;
+					Ret[p] = Dict("Frac" => Frac, "Comp" => Comp);
+				else
+					Res[p] = Dict("Frac" => Frac)
+				end
 			
-				Ret[p] = Dict("Frac" => Frac, "Comp" => Comp);
 			end
 		end
 
