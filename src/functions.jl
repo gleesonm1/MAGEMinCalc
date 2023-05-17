@@ -41,11 +41,13 @@ function PT_minimisation(P_kbar, T_C, bulk)
 		out = point_wise_minimization(P_kbar, T_C, gv, z_b, DB, splx_data, sys_in);
 		Phase = out.ph;
 		Oxides = out.oxides;
+
+		unique_phases = unique(Phase)
 		
 		Ret = Dict();
 		Ret["sys"] = Dict("Phase" => Phase, "Oxides" => Oxides, "Comp" => out.bulk, "Entropy" => out.entropy);
 
-		for p in Phase
+		for p in unique_phases
 			index = findfirst(x -> occursin(string(p), x), Phase);
 			Comp = out.SS_vec[index].Comp_wt;
 			Frac = out.ph_frac_wt[index];
