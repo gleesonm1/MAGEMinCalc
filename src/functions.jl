@@ -55,7 +55,7 @@ function PT_minimisation(P_kbar, T_C, bulk)
 					Comp = out.SS_vec[index].Comp_wt;
 					Ret[p] = Dict("Frac" => Frac, "Comp" => Comp);
 				else
-					Res[p] = Dict("Frac" => Frac)
+					Ret[p] = Dict("Frac" => Frac)
 				end
 			
 			end
