@@ -45,14 +45,16 @@ function PT_minimisation(P_kbar, T_C, bulk)
 		unique_phases = unique(Phase)
 		
 		Ret = Dict();
-		Ret["sys"] = Dict("Phase" => Phase, "Oxides" => Oxides, "Comp" => out.bulk, "Entropy" => out.entropy);
-
-		for p in unique_phases
-			index = findfirst(x -> occursin(string(p), x), unique_phases);
-			Comp = out.SS_vec[index].Comp_wt;
-			Frac = out.ph_frac_wt[index];
+		if length(Phase) > 0		
+			Ret["sys"] = Dict("Phase" => Phase, "Oxides" => Oxides, "Comp" => out.bulk, "Entropy" => out.entropy);
+		
+			for p in Phases
+				index = findfirst(x -> occursin(string(p), x), unique_phases);
+				Comp = out.SS_vec[index].Comp_wt;
+				Frac = out.ph_frac_wt[index];
 			
-			Ret[p] = Dict("Frac" => Frac, "Comp" => Comp);
+				Ret[p] = Dict("Frac" => Frac, "Comp" => Comp);
+			end
 		end
 
 		finalize_MAGEMin(gv, DB);
