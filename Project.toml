@@ -1,7 +1,7 @@
 name = "MAGEMinCalc"
 uuid = "dd69d18c-a947-4316-a873-d8ea006ff1b2"
 authors = ["Matthew Gleeson"]
-version = "0.1.0"
+version = "0.2.0"
 
 [compat]
 CEnum = "0.4"
