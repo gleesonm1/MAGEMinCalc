@@ -42,7 +42,6 @@ function PT_minimisation(P_kbar, T_C, bulk)
 		Phase = out.ph;
 		Oxides = out.oxides;
 		
-		finalize_MAGEMin(gv, DB);
 		Ret = Dict();
 		Ret["sys"] = Dict("Phase" => Phase, "Oxides" => Oxides, "Comp" => out.bulk, "Entropy" => out.entropy);
 
@@ -51,7 +50,9 @@ function PT_minimisation(P_kbar, T_C, bulk)
 			Comp = out.SS_vec[index].Comp_wt;
 			Frac = out.ph_frac_wt[index];
 			
-			Ret[p] = Dict("Frac" =>, "Comp" => Comp);
+			Ret[p] = Dict("Frac" => Frac, "Comp" => Comp);
 		end
+
+		finalize_MAGEMin(gv, DB);
 		return Ret
 	end
