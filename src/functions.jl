@@ -49,10 +49,11 @@ function PT_minimisation(P_kbar, T_C, bulk)
 
 		for p in unique_phases
 			index = findfirst(x -> occursin(string(p), x), Phase);
-			Comp = out.SS_vec[index].Comp_wt;
-			Frac = out.ph_frac_wt[index];
+			if index < length(unique_phases) + 1:
+				Comp = out.SS_vec[index].Comp_wt;
+				Frac = out.ph_frac_wt[index];
 			
-			Ret[p] = Dict("Frac" => Frac, "Comp" => Comp);
+				Ret[p] = Dict("Frac" => Frac, "Comp" => Comp);
 		end
 
 		finalize_MAGEMin(gv, DB);
