@@ -35,8 +35,9 @@ function PT_minimisation(P_kbar, T_C, bulk)
 		gv.verbose = -1;
 
 		new_bulk = bulk/sum(bulk);
+		new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "Fe2O3"; "K2O"; "Na2O"; "TiO2"; "Cr2O3"; "H2O"] 
 
-		gv = define_bulk_rock(gv, new_bulk);		
+		gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");		
 
 		out = point_wise_minimization(P_kbar, T_C, gv, z_b, DB, splx_data, sys_in);
 		Phase = out.ph;
