@@ -51,7 +51,7 @@ function PT_minimisation(P_kbar, T_C, bulk)
 			
 			i = 0
 			j = 0
-			for index in 1:len(Phase)
+			for index in 1:length(Phase)
 				Frac = out.ph_frac_wt[index];
 				if Type[index] == 0
 					i = i + 1
