@@ -29,13 +29,13 @@ function satPhase(P_kbar, T_C, bulk)
 
 function PT_minimisation(P_kbar, T_C, bulk)
 
-		gv, z_b, DB, splx_data = init_MAGEMin();
+		gv, z_b, DB, splx_data = init_MAGEMin("ig");
 		sys_in = "wt";
 
 		gv.verbose = -1;
 
 		new_bulk = bulk/sum(bulk);
-		new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "Fe2O3"; "K2O"; "Na2O"; "TiO2"; "Cr2O3"; "H2O"] 
+		new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"] 
 
 		gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");		
 
@@ -57,11 +57,11 @@ function PT_minimisation(P_kbar, T_C, bulk)
 				if Type[index] == 0
 					i = i + 1
 					Comp = out.PP_vec[i].Comp_wt;
-					Ret[Phase[index]] = Dict("Frac" => Frac, "Comp" => Comp);
+					Ret[Phase[index]] = Dict("Frac" => Frac, "Comp" => Dict(zip(Oxides,Comp)));
 				else
 					j = j +1
 					Comp = out.SS_vec[j].Comp_wt;
-					Ret[Phase[index]] = Dict("Frac" => Frac, "Comp" => Comp);
+					Ret[Phase[index]] = Dict("Frac" => Frac, "Comp" => Dict(zip(Oxides,Comp)));
 				end
 			end
 		end
