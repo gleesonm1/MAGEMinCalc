@@ -1,5 +1,14 @@
 using MAGEMin_C
 using Roots
+using DataFrames
+
+function create_dataframe(columns::Vector{Symbol}, n::Int)
+    df = DataFrame()
+    for col in columns
+        df[!, col] = zeros(n)
+    end
+    return df
+end
 
 function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar, dp_kbar)
     P = P_start_kbar
