@@ -14,7 +14,7 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
 
     gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");	
 
-    T = T_C
+    T = T_start_C
     Results = Dict()
     while P > P_end_kbar
         if P == P_start_kbar
@@ -50,6 +50,7 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
             end
         end
         Results[string[i]] = Ret
+        P = P - dp_kbar
     end
 
 	finalize_MAGEMin(gv, DB);
