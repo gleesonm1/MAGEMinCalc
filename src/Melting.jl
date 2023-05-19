@@ -19,25 +19,24 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
     k = 0
     while P > P_end_kbar
         k = k + 1
-        println(k)
+        out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
+        s_new = out.entropy
         if k == 1
-            start = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
-            s = start.entropy
-            out = start
+            s = s_new
         else
             out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
             s_new = out.entropy
-            while s < s_new
+            while s_new > s
                 T = T - 5
                 out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
                 s_new = out.entropy
             end
-            while s > s_new
+            while s_new < s
                 T = T + 0.5
                 out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
                 s_new = out.entropy
             end
-            while s < s_new
+            while s_new > s
                 T = T - 0.05
                 out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
                 s_new = out.entropy
