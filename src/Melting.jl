@@ -21,7 +21,7 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
             out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
             entropy = out.entropy
         else
-            temperature = fzero(T_C -> entropy_equation(T_C, P_kbar, bulk, s), T)
+            temperature = fzero(T_C -> entropy_equation(T_C, P, bulk, entropy), T)
             T = temperature
             out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
         end        
