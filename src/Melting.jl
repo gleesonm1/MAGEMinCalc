@@ -49,7 +49,7 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
                 end
             end
         end
-        Results[string[i]] = Ret
+        Results[string[P]] = Ret
         P = P - dp_kbar
     end
 
