@@ -105,8 +105,6 @@ function PS_minimisation(s, P_kbar, T_in, bulk)
 	Phase = out.ph;
 	Oxides = out.oxides;
 	Type = out.ph_type;
-
-	unique_phases = unique(Phase)
 	
 	Ret = Dict();
 	if length(Phase) > 0		
