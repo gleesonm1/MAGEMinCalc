@@ -1,6 +1,7 @@
 using MAGEMin_C
 using Roots
 using DataFrames
+using Polynominals
 
 function create_dataframe(columns::Vector{Symbol}, n::Int)
     df = DataFrame()
@@ -28,26 +29,41 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
     out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
     s = out.entropy
     k = 0
+    
     while P > P_end_kbar
         k = k + 1
         if k > 1
+            T_save = zeros(4)
+            s_save = zeros(4)
+            for i in eachindex(T_save)
+                T_save[i] = T - i*2
+                out = point_wise_minimization(P, T_save[i], gv, z_b, DB, splx_data, sys_in);
+                s_save[i] = out.entropy
+            end
+
+            coeffs = polyfit(s_save, T_save, 2)
+            poly = Poly(coeffs)
+            T = poly(s)
+
             out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
-            s_new = out.entropy
-            while s_new > s
-                T = T - 5
-                out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
-                s_new = out.entropy
-            end
-            while s_new < s
-                T = T + 0.5
-                out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
-                s_new = out.entropy
-            end
-            while s_new > s
-                T = T - 0.05
-                out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
-                s_new = out.entropy
-            end
+
+            # out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
+            # s_new = out.entropy
+            # while s_new > s
+            #     T = T - 5
+            #     out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
+            #     s_new = out.entropy
+            # end
+            # while s_new < s
+            #     T = T + 0.5
+            #     out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
+            #     s_new = out.entropy
+            # end
+            # while s_new > s
+            #     T = T - 0.05
+            #     out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
+            #     s_new = out.entropy
+            # end
         end        
     
         Phase = out.ph;
@@ -60,7 +76,7 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
             
             i = 0
             j = 0
-            for index in 1:length(Phase)
+            for index in eachindex(Phase)
                 Frac = out.ph_frac_wt[index];
                 if Type[index] == 0
                     i = i + 1
