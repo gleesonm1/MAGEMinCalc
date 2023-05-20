@@ -1,7 +1,7 @@
 using MAGEMin_C
 using Roots
 using DataFrames
-using Polynominals
+using Polynomials
 
 function create_dataframe(columns::Vector{Symbol}, n::Int)
     df = DataFrame()
