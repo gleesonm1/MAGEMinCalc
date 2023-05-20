@@ -41,9 +41,8 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
                 s_save[i] = out.entropy
             end
 
-            coeffs = polyfit(s_save, T_save, 2)
-            poly = Poly(coeffs)
-            T = poly(s)
+            coeffs = fit(s_save, T_save, 2)
+            T = coeffs(s)
 
             out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
 
