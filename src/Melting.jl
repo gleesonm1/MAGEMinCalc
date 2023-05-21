@@ -33,6 +33,7 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
     Results["Conditions"] = create_dataframe(["T_C", "P_kbar"], length(P))
     Results["sys"] = create_dataframe(new_bulk_ox, length(P))    
     for k in eachindex(P)
+        println(P[k])
         if k > 1
             T_save = zeros(4)
             s_save = zeros(4)
