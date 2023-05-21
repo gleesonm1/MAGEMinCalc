@@ -60,12 +60,12 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
             j = 0
             for index in eachindex(Phase)
                 if !(Phase[index] in keys(Results))
-                    Results[Phase[index]] = create_dataframe(new_bulk_ox, length(P))  
-                    Results[Phase[index]*"_prop"] = create_dataframe(["Mass"], length(P)) 
+                    Results[string(Phase[index])] = create_dataframe(new_bulk_ox, length(P))  
+                    Results[string(Phase[index],"_prop")] = create_dataframe(["Mass"], length(P)) 
                 end
 
                 Frac = out.ph_frac_wt[index];
-                Results[Phase[index]*"_prop"][k,:] = Dict("Mass" => Frac) 
+                Results[string(Phase[index],"_prop")][k,:] = Dict("Mass" => Frac) 
                 if Type[index] == 0
                     i = i + 1
                     Comp = out.PP_vec[i].Comp_wt;
