@@ -33,7 +33,6 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
     Results["Conditions"] = create_dataframe(["T_C", "P_kbar"], length(P))
     Results["sys"] = create_dataframe(new_bulk_ox, length(P))    
     for k in eachindex(P)
-        println(P[k])
         if k > 1
             T_save = zeros(4)
             s_save = zeros(4)
@@ -42,12 +41,15 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
                 out = point_wise_minimization(P[k], T_save[i], gv, z_b, DB, splx_data, sys_in);
                 s_save[i] = out.entropy
             end
+            print(T_save)
 
             coeffs = fit(s_save, T_save, 2)
             T = coeffs(s)
-
+            
+            print(T)
             out = point_wise_minimization(P[k], T, gv, z_b, DB, splx_data, sys_in);
-        end        
+        end  
+        println(P[k])      
     
         Phase = out.ph;
         Oxides = out.oxides;
