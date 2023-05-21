@@ -30,7 +30,7 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
     s = out.entropy
     k = 0
 
-    Results["Conditons"] = create_dataframe(["T_C", "P_kbar", "S"], length(P))
+    Results["Conditons"] = create_dataframe(["T_C", "P_kbar"], length(P))
     Results["sys"] = create_dataframe(new_bulk_ox, length(P))    
     for k in eachindex(P)
         if k > 1
@@ -52,7 +52,7 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
         Oxides = out.oxides;
         Type = out.ph_type;
         
-        Results["Conditions"][k,:] = Dict("T_C" => T, "P_kbar" => P[k], "S" = out.entropy)
+        Results["Conditions"][k,:] = Dict("T_C" => T, "P_kbar" => P[k])
         Results["sys"][k,:] = Dict(zip(Oxides, out.bulk))
         
         # Ret = Dict();
