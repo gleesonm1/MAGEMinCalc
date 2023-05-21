@@ -12,7 +12,7 @@ function create_dataframe(columns::Vector{Symbol}, n::Int)
 end
 
 function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar, dp_kbar)
-    P = range(P_start_kbar, stop = P_end_kbar, range = (Int, (P_start_kbar - P_end_kbar)/dp_kbar))
+    P = collect(range(P_start_kbar, P_end_kbar, round(Int,(P_start_kbar - P_end_kbar)/dp_kbar)))
 
     gv, z_b, DB, splx_data = init_MAGEMin("ig");
 	sys_in = "wt";
