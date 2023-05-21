@@ -37,7 +37,7 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
             T_save = zeros(3)
             s_save = zeros(3)
             for i in eachindex(T_save)
-                T_save[i] = T - i*0.5
+                T_save[i] = T - (i-1)*0.75
                 out = point_wise_minimization(P[k], T_save[i], gv, z_b, DB, splx_data, sys_in);
                 s_save[i] = out.entropy
             end
