@@ -29,7 +29,9 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
     out = point_wise_minimization(P[1], T, gv, z_b, DB, splx_data, sys_in);
     s = out.entropy
     k = 0
-    
+
+    Results["Conditons"] = create_dataframe(["T_C", "P_kbar", "S"], length(P))
+    Results["sys"] = create_dataframe(new_bulk_ox, length(P))    
     for k in eachindex(P)
         if k > 1
             T_save = zeros(4)
@@ -50,26 +52,29 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
         Oxides = out.oxides;
         Type = out.ph_type;
         
-        Ret = Dict();
-        if length(Phase) > 0		
-            Ret["sys"] = Dict("Temperature" => T, "Pressure" => P, "Phase" => Phase, "Oxides" => Oxides, "Comp" => out.bulk, "Entropy" => out.entropy);
+        Results["Conditions"][k,:] = Dict("T_C" => T, "P_kbar" => P[k], "S" = out.entropy)
+        Results["sys"][k,:] = Dict(zip(Oxides, out.bulk))
+        
+        # Ret = Dict();
+        # if length(Phase) > 0		
+        #     Ret["sys"] = Dict("Temperature" => T, "Pressure" => P, "Phase" => Phase, "Oxides" => Oxides, "Comp" => out.bulk, "Entropy" => out.entropy);
             
-            i = 0
-            j = 0
-            for index in eachindex(Phase)
-                Frac = out.ph_frac_wt[index];
-                if Type[index] == 0
-                    i = i + 1
-                    Comp = out.PP_vec[i].Comp_wt;
-                    Ret[Phase[index]] = Dict("Frac" => Frac, "Comp" => Dict(zip(Oxides,Comp)));
-                else
-                    j = j +1
-                    Comp = out.SS_vec[j].Comp_wt;
-                    Ret[Phase[index]] = Dict("Frac" => Frac, "Comp" => Dict(zip(Oxides,Comp)));
-                end
-            end
-        end
-        Results[k] = Ret
+        #     i = 0
+        #     j = 0
+        #     for index in eachindex(Phase)
+        #         Frac = out.ph_frac_wt[index];
+        #         if Type[index] == 0
+        #             i = i + 1
+        #             Comp = out.PP_vec[i].Comp_wt;
+        #             Ret[Phase[index]] = Dict("Frac" => Frac, "Comp" => Dict(zip(Oxides,Comp)));
+        #         else
+        #             j = j +1
+        #             Comp = out.SS_vec[j].Comp_wt;
+        #             Ret[Phase[index]] = Dict("Frac" => Frac, "Comp" => Dict(zip(Oxides,Comp)));
+        #         end
+        #     end
+        # end
+        # Results[k] = Ret
     end
 
 	finalize_MAGEMin(gv, DB);
