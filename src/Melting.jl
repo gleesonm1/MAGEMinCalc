@@ -3,7 +3,7 @@ using Roots
 using DataFrames
 using Polynomials
 
-function create_dataframe(columns::Vector{Symbol}, n::Int)
+function create_dataframe(columns, n)
     df = DataFrame()
     for col in columns
         df[!, col] = zeros(n)
