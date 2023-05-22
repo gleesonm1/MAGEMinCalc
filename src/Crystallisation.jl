@@ -15,8 +15,8 @@ function path(bulk, T_C, P_kbar, Frac)
 	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
 
     Results = Dict()
-    Results["Conditions"] = DataFrame(columns = ["T_C", "P_kbar"], data = zeros(length(P), 2));
-    Results["sys"] = DataFrame(columns = new_bulk_ox, data = zeros(length(P), length(new_bulk_ox)));
+    Results["Conditions"] = DataFrame(columns = ["T_C", "P_kbar"], data = zeros(length(T_C), 2));
+    Results["sys"] = DataFrame(columns = new_bulk_ox, data = zeros(length(T_C), length(new_bulk_ox)));
     
     for k in eachindex(T_C)
         gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");	
@@ -34,8 +34,8 @@ function path(bulk, T_C, P_kbar, Frac)
             j = 0
             for index in eachindex(Phase)
                 if !(Phase[index] in keys(Results))
-                    Results[string(Phase[index])] = DataFrame(columns = new_bulk_ox, data = zeros(length(P), length(new_bulk_ox)));
-                    Results[string(Phase[index],"_prop")] = DataFrame(columns = ["Mass"], data = zeros(length(P), 1));
+                    Results[string(Phase[index])] = DataFrame(columns = new_bulk_ox, data = zeros(length(T_C), length(new_bulk_ox)));
+                    Results[string(Phase[index],"_prop")] = DataFrame(columns = ["Mass"], data = zeros(length(T_C), 1));
                 end
 
                 Frac = out.ph_frac_wt[index];
