@@ -59,6 +59,7 @@ function findliq(bulk, P_kbar, T_start_C)
 end
 
 function path(bulk, T_C, P_kbar, Frac)
+    Choice = Frac
     bulk_in = bulk
     gv, z_b, DB, splx_data = init_MAGEMin("ig");
 	sys_in = "wt";
@@ -106,12 +107,12 @@ function path(bulk, T_C, P_kbar, Frac)
             end
         end
 
-        if Frac == 0
+        if Choice == 0
             bulk = bulk_in
             new_bulk = bulk/sum(bulk)
         end
 
-        if Frac == 1
+        if Choice == 1
             bulk = out.SS_vec["liq"].Comp_wt;
             new_bulk = bulk/sum(bulk)
         end
