@@ -26,7 +26,7 @@ function path(bulk, T_C, P_kbar, Frac)
         Oxides = out.oxides;
         Type = out.ph_type;
         
-        iloc(Results["Conditions"])[k] = Dict("T_C" => T, "P_kbar" => P[k]);
+        iloc(Results["Conditions"])[k] = Dict("T_C" => T_C[k], "P_kbar" => P_kbar[k]);
         iloc(Results["sys"])[k] = Dict(zip(Oxides, out.bulk));
         
         if length(Phase) > 0	
