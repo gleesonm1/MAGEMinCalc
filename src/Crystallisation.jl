@@ -74,6 +74,10 @@ function path(bulk, T_C, P_kbar, Frac)
     Results["sys"] = DataFrame(columns = new_bulk_ox, data = zeros(length(T_C), length(new_bulk_ox)));
     
     for k in eachindex(T_C)
+        gv, z_b, DB, splx_data = init_MAGEMin("ig");
+        sys_in = "wt";
+    
+        gv.verbose = -1;
         gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");	
         out = point_wise_minimization(P_kbar[k], T_C[k], gv, z_b, DB, splx_data, sys_in);
 
@@ -116,6 +120,7 @@ function path(bulk, T_C, P_kbar, Frac)
             comp = iloc(Results["liq"])[k]
             bulk = 100*[comp["SiO2"], comp["Al2O3"], comp["CaO"], comp["MgO"], comp["FeO"], comp["K2O"], comp["Na2O"], comp["TiO2"], comp["O"], comp["Cr2O3"], comp["H2O"]]
             new_bulk = bulk/sum(bulk)
+            print(new_bulk)
         end
     end
 
