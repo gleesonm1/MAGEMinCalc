@@ -114,7 +114,7 @@ function path(bulk, T_C, P_kbar, Frac)
 
         if Choice == 1
             comp = iloc(Results["liq"])[k]
-            bulk = [comp["SiO2"], comp["Al2O3"], comp["CaO"], comp["MgO"], comp["FeO"], comp["K2O"], comp["Na2O"], comp["TiO2"], comp["O"], comp["Cr2O3"], comp["H2O"]]
+            bulk = 100*[comp["SiO2"], comp["Al2O3"], comp["CaO"], comp["MgO"], comp["FeO"], comp["K2O"], comp["Na2O"], comp["TiO2"], comp["O"], comp["Cr2O3"], comp["H2O"]]
             new_bulk = bulk/sum(bulk)
         end
     end
