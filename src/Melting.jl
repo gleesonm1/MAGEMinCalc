@@ -55,7 +55,7 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
 	# gv.verbose = -1;
 
 	# new_bulk = bulk/sum(bulk);
-	# new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
+	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
 
     # gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");	
 
