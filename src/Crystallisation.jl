@@ -66,7 +66,7 @@ function path(bulk, T_C, P_kbar, Frac)
 
 	gv.verbose = -1;
 
-	new_bulk = bulk/sum(bulk);
+	new_bulk = 100*bulk/sum(bulk);
 	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
 
     Results = Dict()
@@ -113,13 +113,13 @@ function path(bulk, T_C, P_kbar, Frac)
 
         if Choice == 0
             bulk = bulk_in
-            new_bulk = bulk/sum(bulk)
+            new_bulk = 100*bulk/sum(bulk)
         end
 
         if Choice == 1
             comp = iloc(Results["liq"])[k]
-            bulk = 100*[comp["SiO2"], comp["Al2O3"], comp["CaO"], comp["MgO"], comp["FeO"], comp["K2O"], comp["Na2O"], comp["TiO2"], comp["O"], comp["Cr2O3"], comp["H2O"]]
-            new_bulk = bulk/sum(bulk)
+            bulk = [comp["SiO2"], comp["Al2O3"], comp["CaO"], comp["MgO"], comp["FeO"], comp["K2O"], comp["Na2O"], comp["TiO2"], comp["O"], comp["Cr2O3"], comp["H2O"]]
+            new_bulk = 100*bulk/sum(bulk)
             print(new_bulk)
         end
     end
