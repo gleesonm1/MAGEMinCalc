@@ -21,6 +21,8 @@ function run_minimisation_with_timeout(P, T, gv, z_b, DB, splx_data, sys_in)
     timeout = 30
     out = nothing
     Test = 0
+    elapsed_time = 0.0
+    
     elapsed_time = @elapsed begin
         task = @async begin
             out = point_minimisation(P, T, gv, z_b, DB, splx_data, sys_in)
