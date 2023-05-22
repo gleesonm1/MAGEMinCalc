@@ -121,6 +121,6 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
         end
     end
 
-	finalize_MAGEMin(gv, DB);
+	# finalize_MAGEMin(gv, DB);
 	return Results
 end
