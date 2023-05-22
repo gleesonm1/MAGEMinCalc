@@ -41,34 +41,34 @@ function PT_minimisation(P_kbar, T_C, bulk)
 	gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");		
 
 	out = point_wise_minimization(P_kbar, T_C, gv, z_b, DB, splx_data, sys_in);
-	Phase = out.ph;
-	Oxides = out.oxides;
-	Type = out.ph_type;
+	# Phase = out.ph;
+	# Oxides = out.oxides;
+	# Type = out.ph_type;
 
-	unique_phases = unique(Phase)
+	# unique_phases = unique(Phase)
 	
-	Ret = Dict();
-	if length(Phase) > 0		
-		Ret["sys"] = Dict("Phase" => Phase, "Oxides" => Oxides, "Comp" => out.bulk, "Entropy" => out.entropy);
+	# Ret = Dict();
+	# if length(Phase) > 0		
+	# 	Ret["sys"] = Dict("Phase" => Phase, "Oxides" => Oxides, "Comp" => out.bulk, "Entropy" => out.entropy);
 		
-		i = 0
-		j = 0
-		for index in 1:length(Phase)
-			Frac = out.ph_frac_wt[index];
-			if Type[index] == 0
-				i = i + 1
-				Comp = out.PP_vec[i].Comp_wt;
-				Ret[Phase[index]] = Dict("Frac" => Frac, "Comp" => Dict(zip(Oxides,Comp)));
-			else
-				j = j +1
-				Comp = out.SS_vec[j].Comp_wt;
-				Ret[Phase[index]] = Dict("Frac" => Frac, "Comp" => Dict(zip(Oxides,Comp)));
-			end
-		end
-	end
+	# 	i = 0
+	# 	j = 0
+	# 	for index in 1:length(Phase)
+	# 		Frac = out.ph_frac_wt[index];
+	# 		if Type[index] == 0
+	# 			i = i + 1
+	# 			Comp = out.PP_vec[i].Comp_wt;
+	# 			Ret[Phase[index]] = Dict("Frac" => Frac, "Comp" => Dict(zip(Oxides,Comp)));
+	# 		else
+	# 			j = j +1
+	# 			Comp = out.SS_vec[j].Comp_wt;
+	# 			Ret[Phase[index]] = Dict("Frac" => Frac, "Comp" => Dict(zip(Oxides,Comp)));
+	# 		end
+	# 	end
+	# end
 
 	finalize_MAGEMin(gv, DB);
-	return Ret
+	return out
 end
 
 function entropy_equation(T_C, P_kbar, bulk, s)

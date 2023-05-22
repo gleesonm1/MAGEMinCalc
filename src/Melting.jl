@@ -47,21 +47,21 @@ function run_minimisation_with_timeout(P, T, gv, z_b, DB, splx_data, sys_in)
 end
 
 function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar, dp_kbar)
-    P = collect(range(P_start_kbar, P_end_kbar, round(Int,(P_start_kbar - P_end_kbar)/dp_kbar)))
+    P = collect(range(P_start_kbar, P_end_kbar, round(Int,(P_start_kbar - P_end_kbar)/dp_kbar)));
+    bulk_in = bulk
+    # gv, z_b, DB, splx_data = init_MAGEMin("ig");
+	# sys_in = "wt";
 
-    gv, z_b, DB, splx_data = init_MAGEMin("ig");
-	sys_in = "wt";
+	# gv.verbose = -1;
 
-	gv.verbose = -1;
+	# new_bulk = bulk/sum(bulk);
+	# new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
 
-	new_bulk = bulk/sum(bulk);
-	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
-
-    gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");	
+    # gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");	
 
     T = T_start_C
     Results = Dict()
-    out = point_wise_minimization(P[1], T, gv, z_b, DB, splx_data, sys_in);
+    out = PT_minimisation(P[1], T, bulk); #point_wise_minimization(P[1], T, gv, z_b, DB, splx_data, sys_in);
     s = out.entropy
 
     # Results["Conditions"] = create_dataframe(["T_C", "P_kbar"], length(P))
@@ -69,12 +69,13 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
     Results["Conditions"] = DataFrame(columns = ["T_C", "P_kbar"], data = zeros(length(P), 2));
     Results["sys"] = DataFrame(columns = new_bulk_ox, data = zeros(length(P), length(new_bulk_ox)));
     for k in eachindex(P)
+        bulk = bulk_in
         if k > 1
             T_save = zeros(3)
             s_save = zeros(3)
             for i in eachindex(T_save)
                 T_save[i] = T - (i-1)*0.75
-                out = point_wise_minimization(P[k], T_save[i], gv, z_b, DB, splx_data, sys_in);
+                out = PT_minimisation(P[k], T_save[i], bulk); #point_wise_minimization(P[k], T_save[i], gv, z_b, DB, splx_data, sys_in);
                 s_save[i] = out.entropy;
             end
             print(T_save)
@@ -83,7 +84,7 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
             T = coeffs(s);
             
             print(T)
-            out = point_wise_minimization(P[k], T, gv, z_b, DB, splx_data, sys_in);
+            out = PT_minimisation(P[k], T, bulk); #point_wise_minimization(P[k], T, gv, z_b, DB, splx_data, sys_in);
         end  
         println(P[k])      
     
