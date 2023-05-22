@@ -120,7 +120,7 @@ function path(bulk, T_C, P_kbar, Frac)
             comp = iloc(Results["liq"])[k]
             bulk = [comp["SiO2"], comp["Al2O3"], comp["CaO"], comp["MgO"], comp["FeO"], comp["K2O"], comp["Na2O"], comp["TiO2"], comp["O"], comp["Cr2O3"], comp["H2O"]]
             new_bulk = 100*bulk/sum(bulk)
-            new_bulk = round.(new_bulk, digits = 2)
+            new_bulk = round.(new_bulk, digits = 3)
             print(new_bulk)
         end
     end
