@@ -12,6 +12,38 @@ function create_dataframe(columns, n)
     return df
 end
 
+function point_minimisation(P, T, gv, z_b, DB, splx_data, sys_in)
+    out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
+    return out
+end
+
+function run_minimisation_with_timeout(P, T, gv, z_b, DB, splx_data, sys_in)
+    timeout = 30
+    out = nothing
+    Test = 0
+    elapsed_time = @elapsed begin
+        task = @async begin
+            out = point_minimisation(P, T, gv, z_b, DB, splx_data, sys_in)
+        end
+
+        while !istaskdone(task) && elapsed_time < timeout
+            sleep(0.1)
+            elapsed_time = @elapsed begin
+                if istaskdone(task)
+                    out = fetch(task)
+                end
+            end
+        end
+
+        if !istaskdone(task)
+            # Timeout occurred
+            Test = 1
+        end
+    end
+
+    return out, Test
+end
+
 function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar, dp_kbar)
     P = collect(range(P_start_kbar, P_end_kbar, round(Int,(P_start_kbar - P_end_kbar)/dp_kbar)))
 
@@ -27,9 +59,15 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
 
     T = T_start_C
     Results = Dict()
-    out = point_wise_minimization(P[1], T, gv, z_b, DB, splx_data, sys_in);
+    out, Test = run_minimisation_with_timeout(P[1], T, gv, z_b, DB, splx_data, sys_in) #point_wise_minimization(P[1], T, gv, z_b, DB, splx_data, sys_in);
+    if Test == 1
+        it = 0;
+        while Test == 1
+            it = it + 1;
+            out, Test = run_minimisation_with_timeout(P[1] - it*dp_kbar/10, T, gv, z_b, DB, splx_data, sys_in);
+        end
+    end
     s = out.entropy
-    k = 0
 
     # Results["Conditions"] = create_dataframe(["T_C", "P_kbar"], length(P))
     # Results["sys"] = create_dataframe(new_bulk_ox, length(P))    
@@ -41,7 +79,16 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
             s_save = zeros(3)
             for i in eachindex(T_save)
                 T_save[i] = T - (i-1)*0.75
-                out = point_wise_minimization(P[k], T_save[i], gv, z_b, DB, splx_data, sys_in);
+                #out = point_wise_minimization(P[k], T_save[i], gv, z_b, DB, splx_data, sys_in);
+                out, Test = run_minimisation_with_timeout(P[k], T_save[i], gv, z_b, DB, splx_data, sys_in) #point_wise_minimization(P[1], T, gv, z_b, DB, splx_data, sys_in);
+
+                it = 0
+                if Test == 1
+                    while Test == 1
+                        it = it + 1
+                        out, Test = run_minimisation_with_timeout(P[k] - it*dp_kbar/10, T_save[i], gv, z_b, DB, splx_data, sys_in)
+                    end
+                end
                 s_save[i] = out.entropy;
             end
             print(T_save)
@@ -50,7 +97,13 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
             T = coeffs(s);
             
             print(T)
-            out = point_wise_minimization(P[k], T, gv, z_b, DB, splx_data, sys_in);
+            out = run_minimisation_with_timeout(P[k] - it*dp_kbar/10, T, gv, z_b, DB, splx_data, sys_in); #point_wise_minimization(P[k] - it*dp_kbar/10, T, gv, z_b, DB, splx_data, sys_in);
+            if Test == 1
+                while Test == 1
+                    it = it + 1
+                    out, Test = run_minimisation_with_timeout(P[k] - it*dp_kbar/10, T, gv, z_b, DB, splx_data, sys_in)
+                end
+            end
         end  
         println(P[k])      
     
@@ -58,7 +111,7 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
         Oxides = out.oxides;
         Type = out.ph_type;
         
-        iloc(Results["Conditions"])[k] = Dict("T_C" => T, "P_kbar" => P[k]);
+        iloc(Results["Conditions"])[k] = Dict("T_C" => T, "P_kbar" => P[k] - it*dp_kbar/10);
         iloc(Results["sys"])[k] = Dict(zip(Oxides, out.bulk));
         
         if length(Phase) > 0	
