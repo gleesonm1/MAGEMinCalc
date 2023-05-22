@@ -1,7 +1,8 @@
 using MAGEMin_C
 using Roots
-using DataFrames
+# using DataFrames
 using Polynomials
+using Pandas
 
 function create_dataframe(columns, n)
     df = DataFrame()
@@ -30,8 +31,10 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
     s = out.entropy
     k = 0
 
-    Results["Conditions"] = create_dataframe(["T_C", "P_kbar"], length(P))
-    Results["sys"] = create_dataframe(new_bulk_ox, length(P))    
+    # Results["Conditions"] = create_dataframe(["T_C", "P_kbar"], length(P))
+    # Results["sys"] = create_dataframe(new_bulk_ox, length(P))    
+    Results["Conditions"] = DataFrame(columns = ["T_C", "P_kbar"], data = zeros(length(P), 2));
+    Results["sys"] = DataFrame(columns = new_bulk_ox, data = zeros(length(P), length(new_bulk_ox)));
     for k in eachindex(P)
         if k > 1
             T_save = zeros(3)
@@ -39,12 +42,12 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
             for i in eachindex(T_save)
                 T_save[i] = T - (i-1)*0.75
                 out = point_wise_minimization(P[k], T_save[i], gv, z_b, DB, splx_data, sys_in);
-                s_save[i] = out.entropy
+                s_save[i] = out.entropy;
             end
             print(T_save)
 
-            coeffs = fit(s_save, T_save, 2)
-            T = coeffs(s)
+            coeffs = fit(s_save, T_save, 2);
+            T = coeffs(s);
             
             print(T)
             out = point_wise_minimization(P[k], T, gv, z_b, DB, splx_data, sys_in);
@@ -55,28 +58,30 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
         Oxides = out.oxides;
         Type = out.ph_type;
         
-        Results["Conditions"][k,:] = Dict("T_C" => T, "P_kbar" => P[k])
-        Results["sys"][k,:] = Dict(zip(Oxides, out.bulk))
+        iloc(Results["Conditions"])[k] = Dict("T_C" => T, "P_kbar" => P[k]);
+        iloc(Results["sys"])[k] = Dict(zip(Oxides, out.bulk));
         
         if length(Phase) > 0	
             i = 0
             j = 0
             for index in eachindex(Phase)
                 if !(Phase[index] in keys(Results))
-                    Results[string(Phase[index])] = create_dataframe(new_bulk_ox, length(P))  
-                    Results[string(Phase[index],"_prop")] = create_dataframe(["Mass"], length(P)) 
+                    # Results[string(Phase[index])] = create_dataframe(new_bulk_ox, length(P))  
+                    # Results[string(Phase[index],"_prop")] = create_dataframe(["Mass"], length(P)) 
+                    Results[string(Phase[index])] = DataFrame(columns = new_bulk_ox, data = zeros(length(P), length(new_bulk_ox)));
+                    Results[string(Phase,"_prop")] = DataFrame(columns = ["Mass"], data = zeros(length(P), 1));
                 end
 
                 Frac = out.ph_frac_wt[index];
-                Results[string(Phase[index],"_prop")][k,:] = Dict("Mass" => Frac) 
+                iloc(Results[string(Phase[index],"_prop")])[k] = Dict("Mass" => Frac);
                 if Type[index] == 0
                     i = i + 1
                     Comp = out.PP_vec[i].Comp_wt;
-                    Results[Phase[index]][k,:] = Dict(zip(Oxides,Comp));
+                    iloc(Results[Phase[index]])[k] = Dict(zip(Oxides,Comp));
                 else
                     j = j +1
                     Comp = out.SS_vec[j].Comp_wt;
-                    Results[Phase[index]][k,:] = Dict(zip(Oxides,Comp));
+                    iloc(Results[Phase[index]])[k] = Dict(zip(Oxides,Comp));
                 end
             end
         end
