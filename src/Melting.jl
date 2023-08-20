@@ -118,16 +118,16 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
                     i = i + 1
                     Comp = out.PP_vec[i].Comp_wt;
                     iloc(Results[Phase[index]])[k] = Dict(zip(Oxides,Comp));
+                else
+                    j = j +1
+                    Comp = out.SS_vec[j].Comp_wt;
+                    iloc(Results[Phase[index]])[k] = Dict(zip(Oxides,Comp));
                     if index == "liq"
                         if Frac != 0
                             bulk = Comp;
                             new_bulk = bulk/sum(bulk)
                         end
                     end
-                else
-                    j = j +1
-                    Comp = out.SS_vec[j].Comp_wt;
-                    iloc(Results[Phase[index]])[k] = Dict(zip(Oxides,Comp));
                 end
             end
         end
