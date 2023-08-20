@@ -77,7 +77,7 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
         if k > 1
             if Frac > 0
                 gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");
-                out = point_wise_minimization(P[k-1], gv, z_b, DB, splx_data, sys_in);
+                out = point_wise_minimization(P[k-1], T, gv, z_b, DB, splx_data, sys_in);
                 s = out.entropy 
             end
             T_save = zeros(3)
