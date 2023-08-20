@@ -46,7 +46,7 @@ function run_minimisation_with_timeout(P, T, gv, z_b, DB, splx_data, sys_in)
     return out, Test
 end
 
-function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar, dp_kbar)
+function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar, dp_kbar, Frac)
     P = collect(range(P_start_kbar, P_end_kbar, round(Int,(P_start_kbar - P_end_kbar)/dp_kbar)));
     bulk_in = bulk
     gv, z_b, DB, splx_data = init_MAGEMin("ig");
@@ -69,8 +69,11 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
     Results["Conditions"] = DataFrame(columns = ["T_C", "P_kbar"], data = zeros(length(P), 2));
     Results["sys"] = DataFrame(columns = new_bulk_ox, data = zeros(length(P), length(new_bulk_ox)));
     for k in eachindex(P)
-        bulk = bulk_in
-        new_bulk = bulk/sum(bulk);
+        if Frac == 0
+            bulk = bulk_in;
+            new_bulk = bulk/sum(bulk);
+        end
+
         if k > 1
             T_save = zeros(3)
             s_save = zeros(3)
@@ -109,12 +112,18 @@ function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar
                     Results[string(Phase[index],"_prop")] = DataFrame(columns = ["Mass"], data = zeros(length(P), 1));
                 end
 
-                Frac = out.ph_frac_wt[index];
-                iloc(Results[string(Phase[index],"_prop")])[k] = Dict("Mass" => Frac);
+                Fraction = out.ph_frac_wt[index];
+                iloc(Results[string(Phase[index],"_prop")])[k] = Dict("Mass" => Fraction);
                 if Type[index] == 0
                     i = i + 1
                     Comp = out.PP_vec[i].Comp_wt;
                     iloc(Results[Phase[index]])[k] = Dict(zip(Oxides,Comp));
+                    if index == "liq"
+                        if Frac != 0
+                            bulk = Comp;
+                            new_bulk = bulk/sum(bulk)
+                        end
+                    end
                 else
                     j = j +1
                     Comp = out.SS_vec[j].Comp_wt;
