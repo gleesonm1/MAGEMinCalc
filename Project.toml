@@ -1,23 +1,26 @@
 name = "MAGEMinCalc"
 uuid = "dd69d18c-a947-4316-a873-d8ea006ff1b2"
 authors = ["Matthew Gleeson"]
-version = "0.2.19"
+version = "0.2.22"
+
+[deps]
+BasicInterpolators = "26cce99e-4866-4b6d-ab74-862489e035e0"
+CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+MAGEMin_C = "e5d170eb-415a-4524-987b-12f1bce1ddab"
+MAGEMin_jll = "763ebaa8-b0d2-5f6b-90ef-4fc23b5db1c4"
+Pandas = "eadc2687-ae89-51f9-a5d9-86b5a6373a9c"
+Polynomials = "f27b6e38-b328-58d1-80ce-0feddd5e7a45"
+SharedArrays = "1a1011a3-84de-559e-8e89-a11a2f7dc383"
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [compat]
 CEnum = "0.4"
-julia = "1.6"
+julia = "1.8"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["Test"]
-
-[deps]
-Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
-CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
-MAGEMin_jll = "763ebaa8-b0d2-5f6b-90ef-4fc23b5db1c4"
-MAGEMin_C = "e5d170eb-415a-4524-987b-12f1bce1ddab"
-DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-Polynomials = "f27b6e38-b328-58d1-80ce-0feddd5e7a45"
-Pandas = "eadc2687-ae89-51f9-a5d9-86b5a6373a9c"

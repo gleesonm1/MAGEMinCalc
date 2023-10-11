@@ -1,23 +1,25 @@
 using MAGEMin_C
-using Roots
 # using DataFrames
 using Polynomials
 using Pandas
 
 function findliq(bulk, P_kbar, T_start_C)
     bulk_in = bulk;
-    gv, z_b, DB, splx_data = init_MAGEMin("ig");
-	sys_in = "wt";
+    # gv, z_b, DB, splx_data = init_MAGEMin("ig");
+	# sys_in = "wt";
 
-	gv.verbose = -1;
+	# gv.verbose = -1;
 
 	new_bulk = bulk/sum(bulk);
 	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
 
     T = T_start_C
 
-    gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");	
-    out = point_wise_minimization(P_kbar, T, gv, z_b, DB, splx_data, sys_in);
+    # gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");	
+    # out = point_wise_minimization(P_kbar, T, gv, z_b, DB, splx_data, sys_in);
+
+    data = Initialize_MAGEMin("ig", verbose = false)
+    out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
 
     Liq = ["liq", "fl"]
     PhaseList = out.ph
@@ -26,45 +28,56 @@ function findliq(bulk, P_kbar, T_start_C)
 
     Step = [3, 1, 0.1]
     for k in eachindex(Step)
-        if length(i) == length(PhaseList)
-            while length(i) == length(PhaseList)
-                bulk = bulk_in
-                new_bulk = bulk/sum(bulk)
+        if length(i) === length(PhaseList)
+            while length(i) === length(PhaseList)
+                # bulk = bulk_in
+                # new_bulk = bulk/sum(bulk)
                 T = T - Step[k]
-                gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");	
-                out = point_wise_minimization(P_kbar, T, gv, z_b, DB, splx_data, sys_in);
+                # gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");	
+                # out = point_wise_minimization(P_kbar, T, gv, z_b, DB, splx_data, sys_in);
+                out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
 
                 PhaseList = out.ph
                 i = intersect(Liq, PhaseList)
             end
         end
-        if length(i) < length(PhaseList)
-            while length(i) < length(PhaseList)
-                bulk = bulk_in
-                new_bulk = bulk/sum(bulk)
-                T = T + Step[k]
-                gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");	
-                out = point_wise_minimization(P_kbar, T, gv, z_b, DB, splx_data, sys_in);
 
-                PhaseList = out.ph
-                i = intersect(Liq, PhaseList)
-            end
+        T = T + 2*Step[k]+2
+        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
 
-        end
+        PhaseList = out.ph
+        i = intersect(Liq, PhaseList)
+
+        T = T - Step[k]-2
+
+        # if length(i) < length(PhaseList)
+        #     while length(i) < length(PhaseList)
+        #         bulk = bulk_in
+        #         new_bulk = bulk/sum(bulk)
+        #         T = T + Step[k]
+        #         # gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");	
+        #         # out = point_wise_minimization(P_kbar, T, gv, z_b, DB, splx_data, sys_in);
+        #         out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+
+        #         PhaseList = out.ph
+        #         i = intersect(Liq, PhaseList)
+        #     end
+        # end
     end
 
-    finalize_MAGEMin(gv, DB);
+    # finalize_MAGEMin(gv, DB);
+    Finalize_MAGEMin(data)
     T_Liq = T
     return T_Liq
 end
 
-function path(bulk, T_C, P_kbar, Frac)
-    Choice = Frac
-    bulk_in = bulk
-    gv, z_b, DB, splx_data = init_MAGEMin("ig");
-	sys_in = "wt";
+function path(bulk, T_C, P_kbar, Frac, phases)
+    Choice = Frac;
+    bulk_in = bulk;
+    # gv, z_b, DB, splx_data = init_MAGEMin("ig");
+	# sys_in = "wt";
 
-	gv.verbose = -1;
+	# gv.verbose = -1;
 
 	new_bulk = 100*bulk/sum(bulk);
 	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
@@ -73,13 +86,18 @@ function path(bulk, T_C, P_kbar, Frac)
     Results["Conditions"] = DataFrame(columns = ["T_C", "P_kbar"], data = zeros(length(T_C), 2));
     Results["sys"] = DataFrame(columns = new_bulk_ox, data = zeros(length(T_C), length(new_bulk_ox)));
     
+    data = Initialize_MAGEMin("ig", verbose = false)
+
     for k in eachindex(T_C)
-        gv, z_b, DB, splx_data = init_MAGEMin("ig");
-        sys_in = "wt";
+        # gv, z_b, DB, splx_data = init_MAGEMin("ig");
+        # sys_in = "wt";
+
+        
+        out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
     
-        gv.verbose = -1;
-        gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");	
-        out = point_wise_minimization(P_kbar[k], T_C[k], gv, z_b, DB, splx_data, sys_in);
+        # gv.verbose = -1;
+        # gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");	
+        # out = point_wise_minimization(P_kbar[k], T_C[k], gv, z_b, DB, splx_data, sys_in);
 
         Phase = out.ph;
         Oxides = out.oxides;
@@ -94,11 +112,11 @@ function path(bulk, T_C, P_kbar, Frac)
             for index in eachindex(Phase)
                 if !(Phase[index] in keys(Results))
                     Results[string(Phase[index])] = DataFrame(columns = new_bulk_ox, data = zeros(length(T_C), length(new_bulk_ox)));
-                    Results[string(Phase[index],"_prop")] = DataFrame(columns = ["Mass"], data = zeros(length(T_C), 1));
+                    Results[string(Phase[index],"_prop")] = DataFrame(columns = ["mass"], data = zeros(length(T_C), 1));
                 end
 
                 Frac = out.ph_frac_wt[index];
-                iloc(Results[string(Phase[index],"_prop")])[k] = Dict("Mass" => Frac);
+                iloc(Results[string(Phase[index],"_prop")])[k] = Dict("mass" => Frac);
                 if Type[index] == 0
                     i = i + 1
                     Comp = out.PP_vec[i].Comp_wt;
@@ -112,8 +130,8 @@ function path(bulk, T_C, P_kbar, Frac)
         end
 
         if Choice == 0
-            bulk = bulk_in
-            new_bulk = 100*bulk/sum(bulk)
+            bulk = bulk_in;
+            new_bulk = 100*bulk/sum(bulk);
         end
 
         if Choice == 1
@@ -126,8 +144,22 @@ function path(bulk, T_C, P_kbar, Frac)
             end
             print(new_bulk)
         end
+
+        if phases !== 0
+            found = 0
+            for str in keys(Results)
+                if str in phases
+                    found = found + 1
+                end
+            end
+            
+            if found === length(phases)
+                break
+            end
+        end
     end
 
-	finalize_MAGEMin(gv, DB);
+	#finalize_MAGEMin(gv, DB);
+    Finalize_MAGEMin(data)
 	return Results
 end
