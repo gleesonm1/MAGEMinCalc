@@ -64,6 +64,61 @@ function equilibrate(bulk, P_kbar, T_C)
 
 end
 
+function findLiq_multi(bulk, P_kbar, T_start_C)
+    if isa(bulk, Matrix{<:AbstractFloat})
+        new_bulk = [bulk[i, :] for i in 1:size(bulk, 1)]
+    else
+        new_bulk = bulk
+    end
+
+    println(new_bulk)
+    
+    println(typeof(new_bulk))
+	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
+
+    T_C = T_start_C
+    T_C_high = copy(T_C)
+    T_C_low = copy(T_C)
+
+    data = Initialize_MAGEMin("ig", verbose = false)
+
+    Liq = ["liq", "fl"];
+    Step = collect(1:10);
+    for j in eachindex(Step)
+        if j === 1
+            for s in eachindex(collect(1:10))
+                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                for k in eachindex(T_C)
+                    PhaseList = out[k].ph
+                    i = intersect(Liq,PhaseList)
+                    if length(i) === length(PhaseList)
+                        T_C_high[k] = T_C[k]
+                        T_C_low[k] = T_C[k] - 50
+                    else
+                        T_C_low[k] = T_C[k]
+                        T_C_high[k] = T_C[k] + 50
+                    end            
+                end
+                T_C .= (T_C_high .+ T_C_low) ./ 2 
+            end
+        else
+            out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+            for k in eachindex(T_C)
+                PhaseList = out[k].ph
+                i = intersect(Liq,PhaseList)
+                if length(i) === length(PhaseList)
+                    T_C_high[k] = T_C[k]
+                else
+                    T_C_low[k] = T_C[k]
+                end           
+            end
+            T_C .= (T_C_high .+ T_C_low) ./ 2  
+        end
+    end
+    Finalize_MAGEMin(data)
+    return T_C
+end
+
 function findliq(bulk, P_kbar, T_start_C)
     bulk_in = bulk;
 
@@ -82,6 +137,16 @@ function findliq(bulk, P_kbar, T_start_C)
 
     Step = [3, 1, 0.1];
     for k in eachindex(Step)
+        if length(i) < length(PhaseList)
+            while length(i) < length(PhaseList)
+                T = T + Step[k]
+                out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+
+                PhaseList = out.ph
+                i = intersect(Liq, PhaseList)
+            end
+        end
+
         if length(i) === length(PhaseList)
             while length(i) === length(PhaseList)
                 T = T - Step[k]
@@ -167,7 +232,7 @@ function path(bulk, T_C, P_kbar, Frac, phases)
             comp = iloc(Results["liq1"])[k]
             bulk = [comp["SiO2"], comp["Al2O3"], comp["CaO"], comp["MgO"], comp["FeO"], comp["K2O"], comp["Na2O"], comp["TiO2"], comp["O"], comp["Cr2O3"], comp["H2O"]]
             new_bulk = 100*bulk/sum(bulk)
-            new_bulk = round.(new_bulk, digits = 3)
+            # new_bulk = round.(new_bulk, digits = 3)
             # if new_bulk[10] < 0.01
             #     new_bulk[10] = 0.01
             # end
