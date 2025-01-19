@@ -3,20 +3,48 @@ using MAGEMin_C
 using Polynomials
 using Pandas
 
-function equilibrate(bulk, P_kbar, T_C)
+function equilibrate(; bulk :: Any, P_kbar :: Vector{Float64}, T_C :: Vector{Float64},
+                    fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Float64, Nothing} = 0.0, 
+                    Model :: String = "ig")
     if isa(bulk, Matrix{<:AbstractFloat})
         new_bulk = [bulk[i, :] for i in 1:size(bulk, 1)]
     else
         new_bulk = bulk
     end
 
-    println(new_bulk)
-    
-    println(typeof(new_bulk))
-	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
+    if fo2_buffer !== nothing
+        new_bulk[:,9] .= 10
+    end
 
-    data = Initialize_MAGEMin("ig", verbose = false)
-    out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+    if fo2_offset === nothing
+        fo2_offset = 0.0
+    end
+
+    if Model == "Weller2024"
+        Model = "igad"
+    else
+        Model = "ig"
+    end
+
+	
+    if Model === "ig"
+    	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"];
+    else
+    	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"];
+    end
+
+    if fo2_buffer !== nothing
+        data = Initialize_MAGEMin(Model, verbose = false, buffer = fo2_buffer)
+        out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+    else
+        data = Initialize_MAGEMin(Model, verbose = false)
+        # println(new_bulk)
+        out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+    end
+
+
+    # data = Initialize_MAGEMin("ig", verbose = false)
+    # out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
 
     Results = Dict()
     Results["Conditions"] = DataFrame(columns = ["T_C", "P_kbar"], data = zeros(length(T_C), 2));
@@ -24,6 +52,9 @@ function equilibrate(bulk, P_kbar, T_C)
 
     for k in eachindex(T_C)
         Phase = out[k].ph;
+        if fo2_buffer !== nothing
+            filter!(x -> x != fo2_buffer, Phase)
+        end 
         Oxides = out[k].oxides;
         Type = out[k].ph_type;
         
@@ -119,19 +150,36 @@ function findLiq_multi(bulk, P_kbar, T_start_C)
     return T_C
 end
 
-function findliq(bulk, P_kbar, T_start_C)
+function findliq(; bulk :: Vector{Float64}, P_kbar :: Float64, T_start_C :: Float64 = 1400.0,
+                fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Float64, Nothing} = 0.0, Model :: String = "ig")
     bulk_in = bulk;
 
+    if fo2_offset === nothing
+        fo2_offset = 0.0
+    end
+
 	new_bulk = bulk/sum(bulk);
-	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"];
+    if Model === "ig"
+    	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"];
+    else
+    	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"];
+    end
 
     T = T_start_C;
 
-    data = Initialize_MAGEMin("ig", verbose = false);
-    out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt");
+    if fo2_buffer !== nothing
+        data = Initialize_MAGEMin(Model, verbose = false, buffer = fo2_buffer)
+        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+    else
+        data = Initialize_MAGEMin(Model, verbose = false);
+        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt");
+    end
 
     Liq = ["liq", "fl"];
     PhaseList = out.ph;
+    if fo2_buffer !== nothing
+        filter!(x -> x != fo2_buffer, PhaseList)
+    end 
 
     i = intersect(Liq, PhaseList);
 
@@ -140,9 +188,16 @@ function findliq(bulk, P_kbar, T_start_C)
         if length(i) < length(PhaseList)
             while length(i) < length(PhaseList)
                 T = T + Step[k]
-                out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                if fo2_buffer !== nothing
+                    out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+                else
+                    out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                end
 
                 PhaseList = out.ph
+                if fo2_buffer !== nothing
+                    filter!(x -> x != fo2_buffer, PhaseList)
+                end 
                 i = intersect(Liq, PhaseList)
             end
         end
@@ -150,20 +205,21 @@ function findliq(bulk, P_kbar, T_start_C)
         if length(i) === length(PhaseList)
             while length(i) === length(PhaseList)
                 T = T - Step[k]
-                out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                if fo2_buffer !== nothing
+                    out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+                else
+                    out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                end
 
                 PhaseList = out.ph
+                if fo2_buffer !== nothing
+                    filter!(x -> x != fo2_buffer, PhaseList)
+                end 
                 i = intersect(Liq, PhaseList)
             end
         end
 
-        T = T + 2*Step[k]+2
-        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
-
-        PhaseList = out.ph
-        i = intersect(Liq, PhaseList)
-
-        T = T - Step[k]-2
+        T = T + Step[k]/2
     end
 
     Finalize_MAGEMin(data)
@@ -171,30 +227,291 @@ function findliq(bulk, P_kbar, T_start_C)
     return T_Liq
 end
 
-function path(bulk, T_C, P_kbar, Frac, phases)
-    Choice = Frac;
+# function isobaric_xtal(; bulk :: Vector{Float64}, T_start_C :: Float64, T_end_C :: Float64, dt_C :: Float64, P_kbar:: Float64, 
+#     frac_xtal :: Union{Float64, Bool} = false, phases :: Union{Vector{String}, Nothing} = nothing, find_liquidus :: Bool = false,
+#     Model :: String = "ig", fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Float64, Nothing} = 0.0)
+
+
+    
+#     for k in eachindex(T_C)
+#         if fo2_buffer !== nothing
+#             out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+#         else
+#             out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+#         end
+
+#         Phase = out.ph;
+#         if fo2_buffer !== nothing
+#             filter!(x -> x != fo2_buffer, Phase)
+#         end 
+#         Oxides = out.oxides;
+#         Type = out.ph_type;
+
+#         iloc(Results["Conditions"])[k] = Dict("T_C" => T_C[k], "P_kbar" => P_kbar[k]);
+#         iloc(Results["sys"])[k] = Dict(zip(Oxides, out.bulk));
+
+#         len = length(Phase)
+#         if len > 0
+#         phase_counts = Dict{String, Int}()  # Counter for phases
+
+#         i = 0
+#         j = 0
+#         for index in eachindex(Phase)
+#             phase_name = string(Phase[index])
+#             phase_counts[phase_name] = get(phase_counts, phase_name, 0) + 1
+#             unique_phase_name = string(phase_name, phase_counts[phase_name])
+
+#             if !(unique_phase_name in keys(Results))
+#                 Results[unique_phase_name] = DataFrame(columns = new_bulk_ox, data = zeros(length(T_C), length(new_bulk_ox)));
+#                 Results[string(unique_phase_name,"_prop")] = DataFrame(columns = ["mass"], data = zeros(length(T_C), 1));
+#             end
+
+#             Frac = out.ph_frac_wt[index];
+#             iloc(Results[string(unique_phase_name,"_prop")])[k] = Dict("mass" => Frac);
+#             if Type[index] == 0
+#                 i = i + 1
+#                 Comp = out.PP_vec[i].Comp_wt;
+#                 iloc(Results[unique_phase_name])[k] = Dict(zip(Oxides,Comp));
+#             else
+#                 j = j +1
+#                 Comp = out.SS_vec[j].Comp_wt;
+#                 iloc(Results[unique_phase_name])[k] = Dict(zip(Oxides,Comp));
+#             end
+#         end
+#         end
+
+#         if !frac_xtal
+#         bulk = bulk_in;
+#         new_bulk = 100*bulk/sum(bulk);
+#         end
+
+#         if frac_xtal
+#         comp = iloc(Results["liq1"])[k]
+#         bulk = [comp["SiO2"], comp["Al2O3"], comp["CaO"], comp["MgO"], comp["FeO"], comp["K2O"], comp["Na2O"], comp["TiO2"], comp["O"], comp["Cr2O3"], comp["H2O"]]
+#         new_bulk = 100*bulk/sum(bulk)
+#         end
+
+#         if fo2_buffer !== nothing
+#         new_bulk[9] = 4.0
+#         end
+
+#         if phases !== nothing
+#         found = 0
+#         for str in keys(Results)
+#             if str in phases
+#                 found = found + 1
+#             end
+#         end
+
+#         if found === length(phases)
+#             break
+#         end
+#         end
+#     end
+
+#     Finalize_MAGEMin(data)
+#     return Results
+# end
+
+function path(; comp :: Dict, T_start_C :: Union{Float64, Nothing} = nothing, T_end_C :: Union{Float64, Nothing} = nothing, dt_C :: Union{Float64, Nothing} = nothing, T_C :: Union{Float64, Nothing} = nothing, T_min_C :: Union{Float64, Nothing} = nothing,
+            P_start_bar :: Union{Float64, Nothing} = nothing, P_end_bar :: Union{Float64, Nothing} = nothing, dp_bar :: Union{Float64, Nothing} = nothing, P_bar :: Union{Float64, Nothing} = nothing, T_path_C :: Union{Vector{Float64}, Nothing} = nothing,
+            P_path_bar :: Union{Vector{Float64}, Nothing} = nothing, frac_xtal :: Union{Float64, Bool, Nothing} = false, 
+            phases :: Union{Vector{String}, Nothing} = nothing, Model :: String = "ig",
+            fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Float64, Nothing} = 0.0,
+            find_liquidus :: Union{Bool, Nothing} = false)
+
+    Results = Dict()
+
+    if frac_xtal === nothing
+        frac_xtal = false
+    end
+
+    if find_liquidus === nothing
+        find_liquidus = false
+    end
+    
+    if Model == "Weller2024"
+        model = "igad"
+    else
+        model = "ig"
+    end
+    
+    if isnothing(comp)
+        throw(Exception("No composition specified"))
+    end
+    
+    if !isnothing(P_bar) && isnothing(P_path_bar)
+        P_path_bar = P_bar
+    end
+    if !isnothing(T_C) && isnothing(T_start_C)
+        T_start_C = T_C
+    end
+
+    if isnothing(P_path_bar) && isnothing(P_start_bar)
+        throw(Exception("Initial P system must be defined"))
+    end
+    if isnothing(T_path_C) && isnothing(T_start_C) && isnothing(find_liquidus)
+        throw(Exception("Starting temperature must be specified or the liquidus must be found"))
+    end
+    
+    if isnothing(comp)
+        throw(Exception("No composition specified"))
+    end
+
+    if model == "ig"
+        bulk = [
+            comp["SiO2_Liq"], comp["Al2O3_Liq"], comp["CaO_Liq"], comp["MgO_Liq"], comp["FeOt_Liq"], 
+            comp["K2O_Liq"], comp["Na2O_Liq"], comp["TiO2_Liq"], 
+            comp["Fe3Fet_Liq"] * (((159.59 / 2) / 71.844) * comp["FeOt_Liq"] - comp["FeOt_Liq"]), 
+            comp["Cr2O3_Liq"], comp["H2O_Liq"]
+        ]
+    else
+        bulk = [
+            comp["SiO2_Liq"], comp["Al2O3_Liq"], comp["CaO_Liq"], comp["MgO_Liq"], comp["FeOt_Liq"], 
+            comp["K2O_Liq"], comp["Na2O_Liq"], comp["TiO2_Liq"], 
+            comp["Fe3Fet_Liq"] * (((159.59 / 2) / 71.844) * comp["FeOt_Liq"] - comp["FeOt_Liq"]), 
+            comp["Cr2O3_Liq"]
+        ]
+    end
+
+    if find_liquidus
+        if !isnothing(P_path_bar)
+            # try
+                if typeof(P_path_bar) <: AbstractVector
+                    T_Liq = findliq(bulk = bulk, P_kbar = P_path_bar[1] ./ 1000.0, T_start_C = 1400.0,
+                                                fo2_buffer = fo2_buffer, fo2_offset = fo2_offset, Model = model)
+                else
+                    T_Liq = findliq(bulk = bulk, P_kbar = P_path_bar / 1000.0, T_start_C = 1400.0,
+                                            fo2_buffer = fo2_buffer, fo2_offset = fo2_offset, Model = model)
+                end
+            # catch
+            #     return Results
+            # end
+        elseif !isnothing(P_start_bar)
+            # try
+                T_Liq = findliq(bulk = bulk, P_kbar = P_start_bar ./ 1000.0, T_start_C = 1400.0,
+                        fo2_buffer = fo2_buffer, fo2_offset = fo2_offset, Model = model)
+            # catch
+            #     return Results
+            # end
+        end
+    
+        T_start_C = T_Liq
+        if !isnothing(T_min_C)
+            T_end_C = T_Liq - T_min_C
+        end
+    end
+
+    if isnothing(T_path_C)
+        if isnothing(T_end_C) && isnothing(dt_C)
+            T = T_start_C
+        elseif !isnothing(T_end_C) && !isnothing(dt_C)
+            T = range(T_start_C, stop = T_end_C, length = 1 + round(Int, (T_start_C - T_end_C) / dt_C))
+        end
+    else
+        T = T_path_C
+    end
+    
+    if isnothing(P_path_bar)
+        if isnothing(P_end_bar) && isnothing(dp_bar)
+            P = P_start_bar
+        elseif !isnothing(P_end_bar) && !isnothing(dp_bar)
+            P = range(P_start_bar, stop = P_end_bar, length = 1 + round(Int, (P_start_bar - P_end_bar) / dp_bar))
+        end
+    else
+        P = P_path_bar
+    end
+
+    if typeof(T) <: AbstractVector && isnothing(P_end_bar) && !isnothing(dp_bar)
+        P = range(P_start_bar, stop = P_start_bar - dp_bar * (length(T) - 1), length = length(T))
+    elseif typeof(P) <: AbstractVector && isnothing(T_end_C) && !isnothing(dt_C)
+        T = range(T_start_C, stop = T_start_C - dt_C * (length(P) - 1), length = length(P))
+    end
+    
+    if typeof(T) <: AbstractVector && typeof(P) <: AbstractVector && length(T) != length(P)
+        throw(Exception("Length of P and T vectors are not the same. Check input parameters"))
+    end
+
+    if find_liquidus
+        if !isnothing(P_path_bar) || !isnothing(T_path_C)
+            if typeof(P) <: AbstractVector && typeof(T) <: AbstractVector
+                T_Liq_loc = argmin(abs.(T .- T_Liq))
+                if T[T_Liq_loc] > T_Liq
+                    T = T[T_Liq_loc:end]
+                    P = P[T_Liq_loc:end]
+                else
+                    T = T[T_Liq_loc-1:end]
+                    P = P[T_Liq_loc-1:end]
+                end
+            end
+        end
+    end
+
+    if typeof(T) <: AbstractVector && !(typeof(P) <: AbstractVector)
+        P = fill(P, length(T))
+    elseif typeof(P) <: AbstractVector && !(typeof(T) != AbstractVector)
+        T = fill(T, length(P))
+    end
+
+    T = collect(T)
+    P = collect(P)
+
+    Results = path_main(bulk = bulk, T_C = T, P_kbar = P./1000.0, frac_xtal = frac_xtal, phases = phases,
+                        Model = model, fo2_buffer = fo2_buffer, fo2_offset = fo2_offset)
+    
+    return Results
+end
+
+function path_main(; bulk :: Vector{Float64}, T_C :: Vector{Float64}, P_kbar:: Vector{Float64}, 
+                frac_xtal :: Union{Float64, Bool} = false, phases :: Union{Vector{String}, Nothing} = nothing,
+                Model :: String = "ig", fo2_buffer :: Union{String, Nothing} = nothing, 
+                fo2_offset :: Union{Float64, Nothing} = 0.0)
+
+    if fo2_buffer !== nothing
+        bulk[9] = 10
+    end
+
     bulk_in = bulk;
 
-	new_bulk = 100*bulk/sum(bulk);
-	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
+    if fo2_offset === nothing
+        fo2_offset = 0.0
+    end
 
+	new_bulk = 100 .* bulk ./sum(bulk);
+    if Model === "igad"
+        new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"]
+    else
+        new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
+    end
     Results = Dict()
     Results["Conditions"] = DataFrame(columns = ["T_C", "P_kbar"], data = zeros(length(T_C), 2));
     Results["sys"] = DataFrame(columns = new_bulk_ox, data = zeros(length(T_C), length(new_bulk_ox)));
     
-    data = Initialize_MAGEMin("ig", verbose = false)
+    if fo2_buffer !== nothing
+        data = Initialize_MAGEMin("ig", verbose = false, buffer = fo2_buffer)
+    else
+        data = Initialize_MAGEMin("ig", verbose = false)
+    end
 
     for k in eachindex(T_C)
-        out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
-    
+        if fo2_buffer !== nothing
+            out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+        else
+            out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+        end
+
         Phase = out.ph;
+        if fo2_buffer !== nothing
+            filter!(x -> x != fo2_buffer, Phase)
+        end 
         Oxides = out.oxides;
         Type = out.ph_type;
         
         iloc(Results["Conditions"])[k] = Dict("T_C" => T_C[k], "P_kbar" => P_kbar[k]);
         iloc(Results["sys"])[k] = Dict(zip(Oxides, out.bulk));
-        
-        if length(Phase) > 0
+
+        len = length(Phase)
+        if len > 0
             phase_counts = Dict{String, Int}()  # Counter for phases
 
             i = 0
@@ -223,23 +540,27 @@ function path(bulk, T_C, P_kbar, Frac, phases)
             end
         end
 
-        if Choice == 0
+        if !frac_xtal
             bulk = bulk_in;
             new_bulk = 100*bulk/sum(bulk);
         end
 
-        if Choice == 1
+        if frac_xtal
             comp = iloc(Results["liq1"])[k]
-            bulk = [comp["SiO2"], comp["Al2O3"], comp["CaO"], comp["MgO"], comp["FeO"], comp["K2O"], comp["Na2O"], comp["TiO2"], comp["O"], comp["Cr2O3"], comp["H2O"]]
+            if Model == "ig"
+                bulk = [comp["SiO2"], comp["Al2O3"], comp["CaO"], comp["MgO"], comp["FeO"], comp["K2O"], comp["Na2O"], comp["TiO2"], comp["O"], comp["Cr2O3"], comp["H2O"]]
+            else
+                bulk = [comp["SiO2"], comp["Al2O3"], comp["CaO"], comp["MgO"], comp["FeO"], comp["K2O"], comp["Na2O"], comp["TiO2"], comp["O"], comp["Cr2O3"]]
+            end
             new_bulk = 100*bulk/sum(bulk)
-            # new_bulk = round.(new_bulk, digits = 3)
-            # if new_bulk[10] < 0.01
-            #     new_bulk[10] = 0.01
-            # end
-            # print(new_bulk)
+
+            if fo2_buffer !== nothing # move to the if frac_xtal section
+                new_bulk[9] = 4.0
+            end
         end
 
-        if phases !== 0
+
+        if phases !== nothing
             found = 0
             for str in keys(Results)
                 if str in phases
