@@ -1,154 +1,155 @@
 using MAGEMin_C
+using PythonCall
 # using DataFrames
-using Polynomials
-using Pandas
+# using Polynomials
+# using Pandas
 
-function equilibrate(; bulk :: Any, P_kbar :: Vector{Float64}, T_C :: Vector{Float64},
-                    fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Float64, Nothing} = 0.0, 
-                    Model :: String = "ig")
-    if isa(bulk, Matrix{<:AbstractFloat})
-        new_bulk = [bulk[i, :] for i in 1:size(bulk, 1)]
-    else
-        new_bulk = bulk
-    end
+# function equilibrate(; bulk :: Any, P_kbar :: Vector{Float64}, T_C :: Vector{Float64},
+#                     fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Float64, Nothing} = 0.0, 
+#                     Model :: String = "ig")
+#     if isa(bulk, Matrix{<:AbstractFloat})
+#         new_bulk = [bulk[i, :] for i in 1:size(bulk, 1)]
+#     else
+#         new_bulk = bulk
+#     end
 
-    if fo2_buffer !== nothing
-        new_bulk[:,9] .= 10
-    end
+#     if fo2_buffer !== nothing
+#         new_bulk[:,9] .= 10
+#     end
 
-    if fo2_offset === nothing
-        fo2_offset = 0.0
-    end
+#     if fo2_offset === nothing
+#         fo2_offset = 0.0
+#     end
 
-    if Model == "Weller2024"
-        Model = "igad"
-    else
-        Model = "ig"
-    end
+#     if Model == "Weller2024"
+#         Model = "igad"
+#     else
+#         Model = "ig"
+#     end
 
 	
-    if Model === "ig"
-    	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"];
-    else
-    	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"];
-    end
+#     if Model === "ig"
+#     	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"];
+#     else
+#     	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"];
+#     end
 
-    if fo2_buffer !== nothing
-        data = Initialize_MAGEMin(Model, verbose = false, buffer = fo2_buffer)
-        out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
-    else
-        data = Initialize_MAGEMin(Model, verbose = false)
-        # println(new_bulk)
-        out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
-    end
+#     if fo2_buffer !== nothing
+#         data = Initialize_MAGEMin(Model, verbose = false, buffer = fo2_buffer)
+#         out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+#     else
+#         data = Initialize_MAGEMin(Model, verbose = false)
+#         # println(new_bulk)
+#         out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+#     end
 
 
-    # data = Initialize_MAGEMin("ig", verbose = false)
-    # out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+#     # data = Initialize_MAGEMin("ig", verbose = false)
+#     # out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
 
-    Results = Dict()
-    Results["Conditions"] = DataFrame(columns = ["T_C", "P_kbar"], data = zeros(length(T_C), 2));
-    Results["sys"] = DataFrame(columns = new_bulk_ox, data = zeros(length(T_C), length(new_bulk_ox)));
+#     Results = Dict()
+#     Results["Conditions"] = DataFrame(columns = ["T_C", "P_kbar"], data = zeros(length(T_C), 2));
+#     Results["sys"] = DataFrame(columns = new_bulk_ox, data = zeros(length(T_C), length(new_bulk_ox)));
 
-    for k in eachindex(T_C)
-        Phase = out[k].ph;
-        if fo2_buffer !== nothing
-            filter!(x -> x != fo2_buffer, Phase)
-        end 
-        Oxides = out[k].oxides;
-        Type = out[k].ph_type;
+#     for k in eachindex(T_C)
+#         Phase = out[k].ph;
+#         if fo2_buffer !== nothing
+#             filter!(x -> x != fo2_buffer, Phase)
+#         end 
+#         Oxides = out[k].oxides;
+#         Type = out[k].ph_type;
         
-        iloc(Results["Conditions"])[k] = Dict("T_C" => T_C[k], "P_kbar" => P_kbar[k]);
-        iloc(Results["sys"])[k] = Dict(zip(Oxides, out[k].bulk));
+#         iloc(Results["Conditions"])[k] = Dict("T_C" => T_C[k], "P_kbar" => P_kbar[k]);
+#         iloc(Results["sys"])[k] = Dict(zip(Oxides, out[k].bulk));
         
-        if length(Phase) > 0	
-            phase_counts = Dict{String, Int}()  # Counter for phases
-            i = 0
-            j = 0
-            for index in eachindex(Phase)
-                phase_name = string(Phase[index])
-                phase_counts[phase_name] = get(phase_counts, phase_name, 0) + 1
-                unique_phase_name = string(phase_name, phase_counts[phase_name])
+#         if length(Phase) > 0	
+#             phase_counts = Dict{String, Int}()  # Counter for phases
+#             i = 0
+#             j = 0
+#             for index in eachindex(Phase)
+#                 phase_name = string(Phase[index])
+#                 phase_counts[phase_name] = get(phase_counts, phase_name, 0) + 1
+#                 unique_phase_name = string(phase_name, phase_counts[phase_name])
 
-                if !(unique_phase_name in keys(Results))
-                    Results[unique_phase_name] = DataFrame(columns = new_bulk_ox, data = zeros(length(T_C), length(new_bulk_ox)));
-                    Results[string(unique_phase_name,"_prop")] = DataFrame(columns = ["mass"], data = zeros(length(T_C), 1));
-                end
+#                 if !(unique_phase_name in keys(Results))
+#                     Results[unique_phase_name] = DataFrame(columns = new_bulk_ox, data = zeros(length(T_C), length(new_bulk_ox)));
+#                     Results[string(unique_phase_name,"_prop")] = DataFrame(columns = ["mass"], data = zeros(length(T_C), 1));
+#                 end
 
-                Frac = out[k].ph_frac_wt[index];
-                iloc(Results[string(unique_phase_name,"_prop")])[k] = Dict("mass" => Frac);
-                if Type[index] == 0
-                    i = i + 1
-                    Comp = out[k].PP_vec[i].Comp_wt;
-                    iloc(Results[unique_phase_name])[k] = Dict(zip(Oxides,Comp));
-                else
-                    j = j +1
-                    Comp = out[k].SS_vec[j].Comp_wt;
-                    iloc(Results[unique_phase_name])[k] = Dict(zip(Oxides,Comp));
-                end
-            end
-        end
-    end
+#                 Frac = out[k].ph_frac_wt[index];
+#                 iloc(Results[string(unique_phase_name,"_prop")])[k] = Dict("mass" => Frac);
+#                 if Type[index] == 0
+#                     i = i + 1
+#                     Comp = out[k].PP_vec[i].Comp_wt;
+#                     iloc(Results[unique_phase_name])[k] = Dict(zip(Oxides,Comp));
+#                 else
+#                     j = j +1
+#                     Comp = out[k].SS_vec[j].Comp_wt;
+#                     iloc(Results[unique_phase_name])[k] = Dict(zip(Oxides,Comp));
+#                 end
+#             end
+#         end
+#     end
 
-    Finalize_MAGEMin(data)
-	return Results
+#     Finalize_MAGEMin(data)
+# 	return Results
 
-end
+# end
 
-function findLiq_multi(bulk, P_kbar, T_start_C)
-    if isa(bulk, Matrix{<:AbstractFloat})
-        new_bulk = [bulk[i, :] for i in 1:size(bulk, 1)]
-    else
-        new_bulk = bulk
-    end
+# function findLiq_multi(bulk, P_kbar, T_start_C)
+#     if isa(bulk, Matrix{<:AbstractFloat})
+#         new_bulk = [bulk[i, :] for i in 1:size(bulk, 1)]
+#     else
+#         new_bulk = bulk
+#     end
 
-    println(new_bulk)
+#     println(new_bulk)
     
-    println(typeof(new_bulk))
-	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
+#     println(typeof(new_bulk))
+# 	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
 
-    T_C = T_start_C
-    T_C_high = copy(T_C)
-    T_C_low = copy(T_C)
+#     T_C = T_start_C
+#     T_C_high = copy(T_C)
+#     T_C_low = copy(T_C)
 
-    data = Initialize_MAGEMin("ig", verbose = false)
+#     data = Initialize_MAGEMin("ig", verbose = false)
 
-    Liq = ["liq", "fl"];
-    Step = collect(1:10);
-    for j in eachindex(Step)
-        if j === 1
-            for s in eachindex(collect(1:10))
-                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
-                for k in eachindex(T_C)
-                    PhaseList = out[k].ph
-                    i = intersect(Liq,PhaseList)
-                    if length(i) === length(PhaseList)
-                        T_C_high[k] = T_C[k]
-                        T_C_low[k] = T_C[k] - 50
-                    else
-                        T_C_low[k] = T_C[k]
-                        T_C_high[k] = T_C[k] + 50
-                    end            
-                end
-                T_C .= (T_C_high .+ T_C_low) ./ 2 
-            end
-        else
-            out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
-            for k in eachindex(T_C)
-                PhaseList = out[k].ph
-                i = intersect(Liq,PhaseList)
-                if length(i) === length(PhaseList)
-                    T_C_high[k] = T_C[k]
-                else
-                    T_C_low[k] = T_C[k]
-                end           
-            end
-            T_C .= (T_C_high .+ T_C_low) ./ 2  
-        end
-    end
-    Finalize_MAGEMin(data)
-    return T_C
-end
+#     Liq = ["liq", "fl"];
+#     Step = collect(1:10);
+#     for j in eachindex(Step)
+#         if j === 1
+#             for s in eachindex(collect(1:10))
+#                 out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+#                 for k in eachindex(T_C)
+#                     PhaseList = out[k].ph
+#                     i = intersect(Liq,PhaseList)
+#                     if length(i) === length(PhaseList)
+#                         T_C_high[k] = T_C[k]
+#                         T_C_low[k] = T_C[k] - 50
+#                     else
+#                         T_C_low[k] = T_C[k]
+#                         T_C_high[k] = T_C[k] + 50
+#                     end            
+#                 end
+#                 T_C .= (T_C_high .+ T_C_low) ./ 2 
+#             end
+#         else
+#             out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+#             for k in eachindex(T_C)
+#                 PhaseList = out[k].ph
+#                 i = intersect(Liq,PhaseList)
+#                 if length(i) === length(PhaseList)
+#                     T_C_high[k] = T_C[k]
+#                 else
+#                     T_C_low[k] = T_C[k]
+#                 end           
+#             end
+#             T_C .= (T_C_high .+ T_C_low) ./ 2  
+#         end
+#     end
+#     Finalize_MAGEMin(data)
+#     return T_C
+# end
 
 function findliq(; bulk :: Vector{Float64}, P_kbar :: Float64, T_start_C :: Float64 = 1400.0,
                 fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Float64, Nothing} = 0.0, Model :: String = "ig")
@@ -462,10 +463,280 @@ function path(; comp :: Dict, T_start_C :: Union{Float64, Nothing} = nothing, T_
     return Results
 end
 
-function path_main(; bulk :: Vector{Float64}, T_C :: Vector{Float64}, P_kbar:: Vector{Float64}, 
-                frac_xtal :: Union{Float64, Bool} = false, phases :: Union{Vector{String}, Nothing} = nothing,
-                Model :: String = "ig", fo2_buffer :: Union{String, Nothing} = nothing, 
-                fo2_offset :: Union{Float64, Nothing} = 0.0)
+# function path_main(; bulk :: Vector{Float64}, T_C :: Vector{Float64}, P_kbar:: Vector{Float64}, 
+#                 frac_xtal :: Union{Float64, Bool} = false, phases :: Union{Vector{String}, Nothing} = nothing,
+#                 Model :: String = "ig", fo2_buffer :: Union{String, Nothing} = nothing, 
+#                 fo2_offset :: Union{Float64, Nothing} = 0.0)
+
+#     if fo2_buffer !== nothing
+#         bulk[9] = 10
+#     end
+
+#     bulk_in = bulk;
+
+#     if fo2_offset === nothing
+#         fo2_offset = 0.0
+#     end
+
+# 	new_bulk = 100 .* bulk ./sum(bulk);
+#     if Model === "igad"
+#         new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"]
+#     else
+#         new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
+#     end
+#     Results = Dict()
+#     Results["Conditions"] = DataFrame(columns = ["T_C", "P_kbar"], data = zeros(length(T_C), 2));
+#     Results["sys"] = DataFrame(columns = new_bulk_ox, data = zeros(length(T_C), length(new_bulk_ox)));
+    
+#     if fo2_buffer !== nothing
+#         data = Initialize_MAGEMin("ig", verbose = false, buffer = fo2_buffer)
+#     else
+#         data = Initialize_MAGEMin("ig", verbose = false)
+#     end
+
+#     for k in eachindex(T_C)
+#         if fo2_buffer !== nothing
+#             out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+#         else
+#             out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+#         end
+
+#         Phase = out.ph;
+#         if fo2_buffer !== nothing
+#             filter!(x -> x != fo2_buffer, Phase)
+#         end 
+#         Oxides = out.oxides;
+#         Type = out.ph_type;
+        
+#         iloc(Results["Conditions"])[k] = Dict("T_C" => T_C[k], "P_kbar" => P_kbar[k]);
+#         iloc(Results["sys"])[k] = Dict(zip(Oxides, out.bulk));
+
+#         len = length(Phase)
+#         if len > 0
+#             phase_counts = Dict{String, Int}()  # Counter for phases
+
+#             i = 0
+#             j = 0
+#             for index in eachindex(Phase)
+#                 phase_name = string(Phase[index])
+#                 phase_counts[phase_name] = get(phase_counts, phase_name, 0) + 1
+#                 unique_phase_name = string(phase_name, phase_counts[phase_name])
+
+#                 if !(unique_phase_name in keys(Results))
+#                     Results[unique_phase_name] = DataFrame(columns = new_bulk_ox, data = zeros(length(T_C), length(new_bulk_ox)));
+#                     Results[string(unique_phase_name,"_prop")] = DataFrame(columns = ["mass"], data = zeros(length(T_C), 1));
+#                 end
+
+#                 Frac = out.ph_frac_wt[index];
+#                 iloc(Results[string(unique_phase_name,"_prop")])[k] = Dict("mass" => Frac);
+#                 if Type[index] == 0
+#                     i = i + 1
+#                     Comp = out.PP_vec[i].Comp_wt;
+#                     iloc(Results[unique_phase_name])[k] = Dict(zip(Oxides,Comp));
+#                 else
+#                     j = j +1
+#                     Comp = out.SS_vec[j].Comp_wt;
+#                     iloc(Results[unique_phase_name])[k] = Dict(zip(Oxides,Comp));
+#                 end
+#             end
+#         end
+
+#         if !frac_xtal
+#             bulk = bulk_in;
+#             new_bulk = 100*bulk/sum(bulk);
+#         end
+
+#         if frac_xtal
+#             comp = iloc(Results["liq1"])[k]
+#             if Model == "ig"
+#                 bulk = [comp["SiO2"], comp["Al2O3"], comp["CaO"], comp["MgO"], comp["FeO"], comp["K2O"], comp["Na2O"], comp["TiO2"], comp["O"], comp["Cr2O3"], comp["H2O"]]
+#             else
+#                 bulk = [comp["SiO2"], comp["Al2O3"], comp["CaO"], comp["MgO"], comp["FeO"], comp["K2O"], comp["Na2O"], comp["TiO2"], comp["O"], comp["Cr2O3"]]
+#             end
+#             new_bulk = 100*bulk/sum(bulk)
+
+#             if fo2_buffer !== nothing # move to the if frac_xtal section
+#                 new_bulk[9] = 4.0
+#             end
+#         end
+
+
+#         if phases !== nothing
+#             found = 0
+#             for str in keys(Results)
+#                 if str in phases
+#                     found = found + 1
+#                 end
+#             end
+            
+#             if found === length(phases)
+#                 break
+#             end
+#         end
+#     end
+
+#     Finalize_MAGEMin(data)
+# 	return Results
+# end
+
+using MAGEMin_C
+using DataFrames
+
+function equilibrate(; bulk :: Any, P_kbar :: Vector{Float64}, T_C :: Vector{Float64},
+    fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Float64, Nothing} = 0.0, 
+    Model :: String = "ig")
+        if isa(bulk, Matrix{<:AbstractFloat})
+            new_bulk = [bulk[i, :] for i in 1:size(bulk, 1)]
+        else
+            new_bulk = bulk
+        end
+    
+        if fo2_buffer !== nothing
+            new_bulk[:,9] .= 10
+        end
+    
+        if fo2_offset === nothing
+            fo2_offset = 0.0
+        end
+    
+        if Model == "Weller2024"
+            Model = "igad"
+        else
+            Model = "ig"
+        end
+    
+        
+        if Model === "ig"
+        	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"];
+        else
+        	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"];
+        end
+    
+        if fo2_buffer !== nothing
+            data = Initialize_MAGEMin(Model, verbose = false, buffer = fo2_buffer)
+            out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+        else
+            data = Initialize_MAGEMin(Model, verbose = false)
+            # println(new_bulk)
+            out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+        end
+    
+    
+        # data = Initialize_MAGEMin("ig", verbose = false)
+        # out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+    
+    Results = Dict()
+    Results["Conditions"] = DataFrame(T_C = T_C, P_kbar = P_kbar)
+    Results["sys"] = DataFrame(zeros(length(T_C), length(new_bulk_ox)), :auto)
+    rename!(Results["sys"], new_bulk_ox)
+
+    for k in eachindex(T_C)
+    Phase = out[k].ph
+    if fo2_buffer !== nothing
+    filter!(x -> x != fo2_buffer, Phase)
+    end 
+    Oxides = out[k].oxides
+    Type = out[k].ph_type
+
+    Results["Conditions"][k, :] .= (T_C[k], P_kbar[k])
+    Results["sys"][k, Oxides] .= out[k].bulk
+
+    if !isempty(Phase)
+    phase_counts = Dict{String, Int}()
+    i, j = 0, 0
+    for index in eachindex(Phase)
+    phase_name = string(Phase[index])
+    phase_counts[phase_name] = get(phase_counts, phase_name, 0) + 1
+    unique_phase_name = string(phase_name, phase_counts[phase_name])
+
+    if !(unique_phase_name in keys(Results))
+        Results[unique_phase_name] = DataFrame(zeros(length(T_C), length(new_bulk_ox)), :auto)
+        rename!(Results[unique_phase_name], new_bulk_ox)
+        Results[string(unique_phase_name, "_prop")] = DataFrame(mass=zeros(length(T_C)))
+    end
+
+    Frac = out[k].ph_frac_wt[index]
+    Results[string(unique_phase_name, "_prop")][k, :mass] = Frac
+    if Type[index] == 0
+        i += 1
+        Comp = out[k].PP_vec[i].Comp_wt
+        Results[unique_phase_name][k, Oxides] .= Comp
+    else
+        j += 1
+        Comp = out[k].SS_vec[j].Comp_wt
+        Results[unique_phase_name][k, Oxides] .= Comp
+    end
+    end
+    end
+    end
+
+    Finalize_MAGEMin(data)
+    Results_df = Dict(k => pytable(v) for (k, v) in Results)
+    return Results_df
+end
+
+
+function findLiq_multi(bulk, P_kbar, T_start_C)
+    if isa(bulk, Matrix{<:AbstractFloat})
+        new_bulk = [bulk[i, :] for i in 1:size(bulk, 1)]
+    else
+        new_bulk = bulk
+    end
+
+    println(new_bulk)
+    println(typeof(new_bulk))
+    
+    new_bulk_ox = ["SiO2", "Al2O3", "CaO", "MgO", "FeO", "K2O", "Na2O", "TiO2", "O", "Cr2O3", "H2O"]
+
+    T_C = T_start_C
+    T_C_high = copy(T_C)
+    T_C_low = copy(T_C)
+
+    data = Initialize_MAGEMin("ig", verbose = false)
+
+    Liq = ["liq", "fl"]
+    Step = collect(1:10)
+    
+    for j in eachindex(Step)
+        if j == 1
+            for _ in 1:10
+                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                for k in eachindex(T_C)
+                    PhaseList = out[k].ph
+                    i = intersect(Liq, PhaseList)
+                    if length(i) == length(PhaseList)
+                        T_C_high[k] = T_C[k]
+                        T_C_low[k] = T_C[k] - 50
+                    else
+                        T_C_low[k] = T_C[k]
+                        T_C_high[k] = T_C[k] + 50
+                    end            
+                end
+                T_C .= (T_C_high .+ T_C_low) ./ 2 
+            end
+        else
+            out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+            for k in eachindex(T_C)
+                PhaseList = out[k].ph
+                i = intersect(Liq, PhaseList)
+                if length(i) == length(PhaseList)
+                    T_C_high[k] = T_C[k]
+                else
+                    T_C_low[k] = T_C[k]
+                end           
+            end
+            T_C .= (T_C_high .+ T_C_low) ./ 2  
+        end
+    end
+    
+    Finalize_MAGEMin(data)
+    return T_C
+end
+
+function path_main(; bulk::Vector{Float64}, T_C::Vector{Float64}, P_kbar::Vector{Float64}, 
+    frac_xtal::Union{Float64, Bool} = false, phases::Union{Vector{String}, Nothing} = nothing,
+    Model::String = "ig", fo2_buffer::Union{String, Nothing} = nothing, 
+    fo2_offset::Union{Float64, Nothing} = 0.0)
 
     if fo2_buffer !== nothing
         bulk[9] = 10
@@ -477,21 +748,17 @@ function path_main(; bulk :: Vector{Float64}, T_C :: Vector{Float64}, P_kbar:: V
         fo2_offset = 0.0
     end
 
-	new_bulk = 100 .* bulk ./sum(bulk);
+    new_bulk = 100 .* bulk ./sum(bulk);
     if Model === "igad"
         new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"]
     else
         new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
     end
     Results = Dict()
-    Results["Conditions"] = DataFrame(columns = ["T_C", "P_kbar"], data = zeros(length(T_C), 2));
-    Results["sys"] = DataFrame(columns = new_bulk_ox, data = zeros(length(T_C), length(new_bulk_ox)));
-    
-    if fo2_buffer !== nothing
-        data = Initialize_MAGEMin("ig", verbose = false, buffer = fo2_buffer)
-    else
-        data = Initialize_MAGEMin("ig", verbose = false)
-    end
+    Results["Conditions"] = DataFrame(T_C = T_C, P_kbar = P_kbar)
+    Results["sys"] = DataFrame([zeros(length(T_C)) for _ in new_bulk_ox], new_bulk_ox)
+
+    data = fo2_buffer !== nothing ? Initialize_MAGEMin("ig", verbose=false, buffer=fo2_buffer) : Initialize_MAGEMin("ig", verbose=false)
 
     for k in eachindex(T_C)
         if fo2_buffer !== nothing
@@ -507,73 +774,85 @@ function path_main(; bulk :: Vector{Float64}, T_C :: Vector{Float64}, P_kbar:: V
         Oxides = out.oxides;
         Type = out.ph_type;
         
-        iloc(Results["Conditions"])[k] = Dict("T_C" => T_C[k], "P_kbar" => P_kbar[k]);
-        iloc(Results["sys"])[k] = Dict(zip(Oxides, out.bulk));
+        Results["Conditions"][k, :] = (T_C[k], P_kbar[k])
+        Results["sys"][k, Oxides] .= out.bulk
 
-        len = length(Phase)
-        if len > 0
-            phase_counts = Dict{String, Int}()  # Counter for phases
+        phase_counts = Dict{String, Int}()
+        i, j = 0, 0
+        
+        #             for index in eachindex(Phase)
+        #                 phase_name = string(Phase[index])
+        #                 phase_counts[phase_name] = get(phase_counts, phase_name, 0) + 1
+        #                 unique_phase_name = string(phase_name, phase_counts[phase_name])
+        
+        #                 if !(unique_phase_name in keys(Results))
+        #                     Results[unique_phase_name] = DataFrame(columns = new_bulk_ox, data = zeros(length(T_C), length(new_bulk_ox)));
+        #                     Results[string(unique_phase_name,"_prop")] = DataFrame(columns = ["mass"], data = zeros(length(T_C), 1));
+        #                 end
+        
+        #                 Frac = out.ph_frac_wt[index];
+        #                 iloc(Results[string(unique_phase_name,"_prop")])[k] = Dict("mass" => Frac);
+        #                 if Type[index] == 0
+        #                     i = i + 1
+        #                     Comp = out.PP_vec[i].Comp_wt;
+        #                     iloc(Results[unique_phase_name])[k] = Dict(zip(Oxides,Comp));
+        #                 else
+        #                     j = j +1
+        #                     Comp = out.SS_vec[j].Comp_wt;
+        #                     iloc(Results[unique_phase_name])[k] = Dict(zip(Oxides,Comp));
+        #                 end
+        #             end
+        #         end
 
-            i = 0
-            j = 0
-            for index in eachindex(Phase)
-                phase_name = string(Phase[index])
-                phase_counts[phase_name] = get(phase_counts, phase_name, 0) + 1
-                unique_phase_name = string(phase_name, phase_counts[phase_name])
+        for index in eachindex(Phase)
+            phase_name = string(Phase[index])
+            phase_counts[phase_name] = get(phase_counts, phase_name, 0) + 1
+            unique_phase_name = string(phase_name, phase_counts[phase_name])
 
-                if !(unique_phase_name in keys(Results))
-                    Results[unique_phase_name] = DataFrame(columns = new_bulk_ox, data = zeros(length(T_C), length(new_bulk_ox)));
-                    Results[string(unique_phase_name,"_prop")] = DataFrame(columns = ["mass"], data = zeros(length(T_C), 1));
-                end
-
-                Frac = out.ph_frac_wt[index];
-                iloc(Results[string(unique_phase_name,"_prop")])[k] = Dict("mass" => Frac);
-                if Type[index] == 0
-                    i = i + 1
-                    Comp = out.PP_vec[i].Comp_wt;
-                    iloc(Results[unique_phase_name])[k] = Dict(zip(Oxides,Comp));
-                else
-                    j = j +1
-                    Comp = out.SS_vec[j].Comp_wt;
-                    iloc(Results[unique_phase_name])[k] = Dict(zip(Oxides,Comp));
-                end
+            if !(unique_phase_name in keys(Results))
+                Results[unique_phase_name] = DataFrame([zeros(length(T_C)) for _ in new_bulk_ox], new_bulk_ox)
+                Results[string(unique_phase_name, "_prop")] = DataFrame(mass=zeros(length(T_C)))
             end
+
+            Frac = out.ph_frac_wt[index]
+            Results[string(unique_phase_name, "_prop")][k, :mass] = Frac
+            
+            if Type[index] == 0
+                i = i + 1
+                Comp = out.PP_vec[i].Comp_wt;
+                Results[unique_phase_name][k, Oxides] .= Comp;
+            else
+                j = j +1
+                Comp = out.SS_vec[j].Comp_wt;
+                Results[unique_phase_name][k, Oxides] .= Comp;
+            end
+            # Comp = out.PP_vec[i+=1].Comp_wt if Type[index] == 0 else out.SS_vec[j+=1].Comp_wt
+            # Results[unique_phase_name][k, Oxides] .= Comp
         end
 
         if !frac_xtal
-            bulk = bulk_in;
-            new_bulk = 100*bulk/sum(bulk);
-        end
-
-        if frac_xtal
-            comp = iloc(Results["liq1"])[k]
+            bulk = copy(bulk_in)
+            new_bulk = 100 .* bulk ./ sum(bulk)
+        elseif frac_xtal
+            comp = Results["liq1"][k, :]
             if Model == "ig"
                 bulk = [comp["SiO2"], comp["Al2O3"], comp["CaO"], comp["MgO"], comp["FeO"], comp["K2O"], comp["Na2O"], comp["TiO2"], comp["O"], comp["Cr2O3"], comp["H2O"]]
             else
                 bulk = [comp["SiO2"], comp["Al2O3"], comp["CaO"], comp["MgO"], comp["FeO"], comp["K2O"], comp["Na2O"], comp["TiO2"], comp["O"], comp["Cr2O3"]]
             end
             new_bulk = 100*bulk/sum(bulk)
-
-            if fo2_buffer !== nothing # move to the if frac_xtal section
+            if fo2_buffer !== nothing
                 new_bulk[9] = 4.0
             end
         end
 
-
-        if phases !== nothing
-            found = 0
-            for str in keys(Results)
-                if str in phases
-                    found = found + 1
-                end
-            end
-            
-            if found === length(phases)
-                break
-            end
+        if phases !== nothing && all(str in keys(Results) for str in phases)
+            break
         end
     end
 
+
     Finalize_MAGEMin(data)
-	return Results
+    Results_df = Dict(k => pytable(v) for (k, v) in Results)
+    return Results_df
 end

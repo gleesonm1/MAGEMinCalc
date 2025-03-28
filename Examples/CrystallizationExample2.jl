@@ -10,4 +10,4 @@ Results = MAGEMinCalc.path(comp = comp, T_end_C = 1100.0, dt_C = 2.0,
             Model = "ig",
             find_liquidus = true)
 
-# plot(out["liq1"]["MgO"].*100, out["liq1"]["Al2O3"].*100, xlabel = "MgO (wt%)", ylabel = "Al2O3 (wt%)")
+plot(Results["liq1"]["MgO"].*100, Results["liq1"]["Al2O3"].*100, xlabel = "MgO (wt%)", ylabel = "Al2O3 (wt%)")

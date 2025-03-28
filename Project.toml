@@ -1,19 +1,19 @@
 name = "MAGEMinCalc"
 uuid = "dd69d18c-a947-4316-a873-d8ea006ff1b2"
 authors = ["Matthew Gleeson"]
-version = "0.4.0"
+version = "0.4.1"
 
 [deps]
 BasicInterpolators = "26cce99e-4866-4b6d-ab74-862489e035e0"
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 MAGEMin_C = "e5d170eb-415a-4524-987b-12f1bce1ddab"
+PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
 MAGEMin_jll = "763ebaa8-b0d2-5f6b-90ef-4fc23b5db1c4"
-Pandas = "eadc2687-ae89-51f9-a5d9-86b5a6373a9c"
 Polynomials = "f27b6e38-b328-58d1-80ce-0feddd5e7a45"
 SharedArrays = "1a1011a3-84de-559e-8e89-a11a2f7dc383"
 Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 
 [compat]
 CEnum = "0.4"

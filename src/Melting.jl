@@ -1,7 +1,7 @@
 using MAGEMin_C
-# using DataFrames
-using Polynomials
-using Pandas
+using DataFrames
+# using Polynomials
+# using Pandas
 using BasicInterpolators
 
 # function create_dataframe(columns, n)
@@ -58,7 +58,8 @@ function optimize_entropy(T, s, P, data, bulk, bulk_ox, n)
     return coeffs(s)
 end
 
-function AdiabaticDecompressionMelting_new(bulk::Vector{Float64}, T_start_C::Float64, P_start_kbar::Float64, P_end_kbar::Float64, dp_kbar::Float64, Frac::Float64)
+function AdiabaticDecompressionMelting_new(bulk::Vector{Float64}, T_start_C::Float64, P_start_kbar::Float64, 
+                                        P_end_kbar::Float64, dp_kbar::Float64, Frac::Float64)
     # Precompute pressure range
     P = range(P_start_kbar, step=-dp_kbar, stop=P_end_kbar)
 
