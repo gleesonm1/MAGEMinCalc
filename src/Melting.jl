@@ -1,50 +1,6 @@
 using MAGEMin_C
 using DataFrames
-# using Polynomials
-# using Pandas
 using BasicInterpolators
-
-# function create_dataframe(columns, n)
-#     df = DataFrame()
-#     for col in columns
-#         df[!, col] = zeros(n)
-#     end
-#     return df
-# end
-
-# function point_minimisation(P, T, gv, z_b, DB, splx_data, sys_in)
-#     out = point_wise_minimization(P, T, gv, z_b, DB, splx_data, sys_in);
-#     return out
-# end
-
-# function run_minimisation_with_timeout(P, T, gv, z_b, DB, splx_data, sys_in)
-#     timeout = 30
-#     out = nothing
-#     Test = 0
-#     elapsed_time = 0.0
-
-#     elapsed_time = @elapsed begin
-#         task = @async begin
-#             out = point_minimisation(P, T, gv, z_b, DB, splx_data, sys_in)
-#         end
-
-#         while !istaskdone(task) && elapsed_time < timeout
-#             sleep(0.1)
-#             elapsed_time = @elapsed begin
-#                 if istaskdone(task)
-#                     out = fetch(task)
-#                 end
-#             end
-#         end
-
-#         if !istaskdone(task)
-#             # Timeout occurred
-#             Test = 1
-#         end
-#     end
-
-#     return out, Test
-# end
 
 function optimize_entropy(T, s, P, data, bulk, bulk_ox, n)
     T_save = range(T, step=-0.75, length=n)
@@ -58,75 +14,94 @@ function optimize_entropy(T, s, P, data, bulk, bulk_ox, n)
     return coeffs(s)
 end
 
-function AdiabaticDecompressionMelting_new(bulk::Vector{Float64}, T_start_C::Float64, P_start_kbar::Float64, 
-                                        P_end_kbar::Float64, dp_kbar::Float64, Frac::Float64)
-    # Precompute pressure range
-    P = range(P_start_kbar, step=-dp_kbar, stop=P_end_kbar)
+# function AdiabaticDecompressionMelting_new(bulk::Vector{Float64}, T_start_C::Float64, P_start_kbar::Float64, 
+#                                         P_end_kbar::Float64, dp_kbar::Float64, Frac::Float64,
+#                                         fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Float64, Nothing} = 0.0, Model :: String = "ig")
+#     # Precompute pressure range
+#     P = range(P_start_kbar, step=-dp_kbar, stop=P_end_kbar)
 
-    # Normalize bulk composition
-    new_bulk = bulk / sum(bulk)
-    new_bulk_ox = ["SiO2", "Al2O3", "CaO", "MgO", "FeO", "K2O", "Na2O", "TiO2", "O", "Cr2O3", "H2O"]
+#     # Normalize bulk composition
+#     new_bulk = bulk/sum(bulk);
+#     if Model === "ig"
+#     	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"];
+#     else
+#     	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"];
+#     end
 
-    # Initialize system
-    data = Initialize_MAGEMin("ig", verbose=false)
-    Results = Dict("Conditions" => DataFrame((T_C=zeros(length(P)), P_kbar=zeros(length(P)), s=zeros(length(P)))),
-        "sys" => DataFrame(zeros(length(P), length(new_bulk_ox)), columns=new_bulk_ox))
+#     if fo2_offset === nothing
+#         fo2_offset = 0.0
+#     end
 
-    T = T_start_C
-    out = single_point_minimization(P[1], T, data, X=new_bulk, Xoxides=new_bulk_ox, sys_in="wt")
-    s = out.entropy
+#     # Initialize system
+#     T = T_start_C;
 
-    for (k, pressure) in enumerate(P)
-        # Update bulk
-        new_bulk = bulk / sum(bulk)
+#     if fo2_buffer !== nothing
+#         bulk[9] = 10
+#         data = Initialize_MAGEMin(Model, verbose = false, buffer = fo2_buffer)
+#         out = single_point_minimization(P[1], T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+#     else
+#         data = Initialize_MAGEMin(Model, verbose = false);
+#         out = single_point_minimization(P[1], T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt");
+#     end
+#     Results = Dict("Conditions" => DataFrame(T_C=zeros(length(P)), P_kbar=zeros(length(P)), s=zeros(length(P))),
+#         "sys" => DataFrame([zeros(length(T_C)) for _ in new_bulk_ox], new_bulk_ox)
 
-        if k > 1
-            # Converge entropy via minimization
-            n = 4
-            T_next = optimize_entropy(T, s, pressure, data, new_bulk, new_bulk_ox, n)
+#     s = out.entropy
 
-            # Update temperature for next step
-            out = single_point_minimization(pressure, T_next, data, X=new_bulk, Xoxides=new_bulk_ox, sys_in="wt")
+#     for (k, pressure) in enumerate(P)
+#         # Update bulk
+#         new_bulk = bulk / sum(bulk)
 
-            if abs(out.entropy - s)/s > 0.0001
-                while abs(out.entropy - s)/s > 0.0001
-                    n = n*2
-                    T_next, s_check = optimize_entropy(T, s, pressure, data, new_bulk, new_bulk_ox, n)
+#         if k > 1
+#             # Converge entropy via minimization
+#             n = 4
+#             T_next = optimize_entropy(T, s, pressure, data, new_bulk, new_bulk_ox, n)
 
-                    # Update temperature for next step
-                    out = single_point_minimization(pressure, T_next, data, X=new_bulk, Xoxides=new_bulk_ox, sys_in="wt")
-                    if n > 30
-                        break
-                    end
-                end
-            end
-            T = T_next
-        end
+#             # Update temperature for next step
+#             out = single_point_minimization(pressure, T_next, data, X=new_bulk, Xoxides=new_bulk_ox, sys_in="wt")
 
-        # Record conditions and system results
-        Results["Conditions"][k, :] .= [T, pressure, out.entropy]
-        Results["sys"][k, :] .= out.bulk
+#             if abs(out.entropy - s)/s > 0.0001
+#                 while abs(out.entropy - s)/s > 0.0001
+#                     n = n*2
+#                     T_next, s_check = optimize_entropy(T, s, pressure, data, new_bulk, new_bulk_ox, n)
 
-        phase_counts = Dict{String, Int}()
+#                     # Update temperature for next step
+#                     out = single_point_minimization(pressure, T_next, data, X=new_bulk, Xoxides=new_bulk_ox, sys_in="wt")
+#                     if n > 30
+#                         break
+#                     end
+#                 end
+#             end
+#             T = T_next
+#         end
 
-        # Handle phases
-        for (index, phase) in enumerate(out.ph)  # Counter for PhaseList
-            phase_name = string(phase)
-            phase_counts[phase_name] = get(phase_counts, phase_name, 0) + 1
-            unique_phase_name = string(phase_name, phase_counts[phase_name])
+#         # Record conditions and system results
+#         Results["Conditions"][k, :] .= (T, pressure, out.entropy)
+#         Results["sys"][k, :] .= out.bulk
 
-            if !(phase in keys(Results))
-                Results[unique_phase_name] = DataFrame(zeros(length(P), length(new_bulk_ox)), columns=new_bulk_ox)
-                Results["$(unique_phase_name)_prop"] = DataFrame(mass=zeros(length(P)))
-            end
-            Results["$(unique_phase_name)_prop"][k, :] .= out.ph_frac_wt[index]
-            Results[unique_phase_name][k, :] .= out.ph_type[index] == 0 ? out.PP_vec[index].Comp_wt : out.SS_vec[index].Comp_wt
-        end
-    end
+#         phase_counts = Dict{String, Int}()
+#         i, j = 0, 0
+#         # Handle phases
+#         for (index, phase) in enumerate(out.ph)  # Counter for PhaseList
+#             phase_name = string(phase)
+#             phase_counts[phase_name] = get(phase_counts, phase_name, 0) + 1
+#             unique_phase_name = string(phase_name, phase_counts[phase_name])
 
-    Finalize_MAGEMin(data)
-    return Results
-end
+#             if !(phase in keys(Results))
+#                 Results[unique_phase_name] = DataFrame(zeros(length(P), length(new_bulk_ox)), columns=new_bulk_ox)
+#                 Results["$(unique_phase_name)_prop"] = DataFrame(mass=zeros(length(P)))
+#             end
+
+#             Frac = out.ph_frac_wt[index]
+#             Results[string(unique_phase_name, "_prop")][k, :mass] = Frac
+
+#             Results[unique_phase_name][k, :] .= out.ph_type[index] == 0 ? out.PP_vec[index].Comp_wt : out.SS_vec[index].Comp_wt
+#         end
+#     end
+
+#     Finalize_MAGEMin(data)
+#     return Results
+# end
 
 
 function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar, dp_kbar, Frac)
