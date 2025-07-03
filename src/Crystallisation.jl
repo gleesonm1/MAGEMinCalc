@@ -238,13 +238,25 @@ function equilibrate(; bulk :: Any, P_kbar :: Vector{Float64}, T_C :: Vector{Flo
         end
     
         if fo2_buffer !== nothing
-            new_bulk[:,9] .= 10
+            if isa(new_bulk, Matrix{<:AbstractFloat})
+                new_bulk[:, 9] .= 10
+            elseif isa(new_bulk, Vector{<:AbstractVector})
+                for row in new_bulk
+                    row[9] = 10
+                end
+            else
+                error("Unsupported format for new_bulk")
+            end
         end
     
         if fo2_offset === nothing
             fo2_offset = 0.0
         end
-    
+
+        if fo2_buffer !== nothing && eltype(fo2_offset) == Float64
+            fo2_offset = fill(fo2_offset, length(P_kbar))
+        end
+
         if Model == "Weller2024"
             Model = "igad"
         else
@@ -263,57 +275,55 @@ function equilibrate(; bulk :: Any, P_kbar :: Vector{Float64}, T_C :: Vector{Flo
             out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
         else
             data = Initialize_MAGEMin(Model, verbose = false)
-            # println(new_bulk)
             out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
         end
     
     
-        # data = Initialize_MAGEMin("ig", verbose = false)
-        # out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
-    
+    new_bulk_ox_saved =  new_bulk_ox #["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
     Results = Dict()
     Results["Conditions"] = DataFrame(T_C = T_C, P_kbar = P_kbar)
-    Results["sys"] = DataFrame(zeros(length(T_C), length(new_bulk_ox)), :auto)
-    rename!(Results["sys"], new_bulk_ox)
+    Results["sys"] = DataFrame(zeros(length(T_C), length(new_bulk_ox_saved)), :auto)
+    rename!(Results["sys"], new_bulk_ox_saved)
 
     for k in eachindex(T_C)
-    Phase = out[k].ph
-    if fo2_buffer !== nothing
-    filter!(x -> x != fo2_buffer, Phase)
-    end 
-    Oxides = out[k].oxides
-    Type = out[k].ph_type
+        Phase = out[k].ph
+        if fo2_buffer !== nothing
+            filter!(x -> x != fo2_buffer, Phase)
+        end 
+        println(Phase)
+        Oxides = out[k].oxides
+        Type = out[k].ph_type
 
-    Results["Conditions"][k, :] .= (T_C[k], P_kbar[k])
-    Results["sys"][k, Oxides] .= out[k].bulk
+        Results["Conditions"][k, :] .= (T_C[k], P_kbar[k])
+        Results["sys"][k, Oxides] .= out[k].bulk
 
-    if !isempty(Phase)
-    phase_counts = Dict{String, Int}()
-    i, j = 0, 0
-    for index in eachindex(Phase)
-    phase_name = string(Phase[index])
-    phase_counts[phase_name] = get(phase_counts, phase_name, 0) + 1
-    unique_phase_name = string(phase_name, phase_counts[phase_name])
+        if !isempty(Phase)
+            phase_counts = Dict{String, Int}()
+            i, j = 0, 0
+            for index in eachindex(Phase)
+                phase_name = string(Phase[index])
+                phase_counts[phase_name] = get(phase_counts, phase_name, 0) + 1
+                unique_phase_name = string(phase_name, phase_counts[phase_name])
 
-    if !(unique_phase_name in keys(Results))
-        Results[unique_phase_name] = DataFrame(zeros(length(T_C), length(new_bulk_ox)), :auto)
-        rename!(Results[unique_phase_name], new_bulk_ox)
-        Results[string(unique_phase_name, "_prop")] = DataFrame(mass=zeros(length(T_C)))
-    end
+                if !(unique_phase_name in keys(Results))
+                    Results[unique_phase_name] = DataFrame(zeros(length(T_C), length(new_bulk_ox_saved)), :auto)
+                    rename!(Results[unique_phase_name], new_bulk_ox_saved)
+                    Results[string(unique_phase_name, "_prop")] = DataFrame(mass=zeros(length(T_C)))
+                end
 
-    Frac = out[k].ph_frac_wt[index]
-    Results[string(unique_phase_name, "_prop")][k, :mass] = Frac
-    if Type[index] == 0
-        i += 1
-        Comp = out[k].PP_vec[i].Comp_wt
-        Results[unique_phase_name][k, Oxides] .= Comp
-    else
-        j += 1
-        Comp = out[k].SS_vec[j].Comp_wt
-        Results[unique_phase_name][k, Oxides] .= Comp
-    end
-    end
-    end
+                Frac = out[k].ph_frac_wt[index]
+                Results[string(unique_phase_name, "_prop")][k, :mass] = Frac
+                if Type[index] == 0
+                    i += 1
+                    Comp = out[k].PP_vec[i].Comp_wt
+                    Results[unique_phase_name][k, Oxides] .= Comp
+                else
+                    j += 1
+                    Comp = out[k].SS_vec[j].Comp_wt
+                    Results[unique_phase_name][k, Oxides] .= Comp
+                end
+            end
+        end
     end
 
     Finalize_MAGEMin(data)
@@ -401,9 +411,10 @@ function path_main(; bulk::Vector{Float64}, T_C::Vector{Float64}, P_kbar::Vector
     end
     Results = Dict()
     Results["Conditions"] = DataFrame(T_C = T_C, P_kbar = P_kbar)
-    Results["sys"] = DataFrame([zeros(length(T_C)) for _ in ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]], ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"])
+    Results["sys"] = DataFrame([zeros(length(T_C)) for _ in new_bulk_ox], new_bulk_ox)
 
-    data = fo2_buffer !== nothing ? Initialize_MAGEMin("ig", verbose=false, buffer=fo2_buffer) : Initialize_MAGEMin("ig", verbose=false)
+    println(Model)
+    data = fo2_buffer !== nothing ? Initialize_MAGEMin(Model, verbose=false, buffer=fo2_buffer) : Initialize_MAGEMin(Model, verbose=false)
 
     for k in eachindex(T_C)
         if fo2_buffer !== nothing
@@ -431,7 +442,7 @@ function path_main(; bulk::Vector{Float64}, T_C::Vector{Float64}, P_kbar::Vector
             unique_phase_name = string(phase_name, phase_counts[phase_name])
 
             if !(unique_phase_name in keys(Results))
-                Results[unique_phase_name] = DataFrame([zeros(length(T_C)) for _ in ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]], ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"])
+                Results[unique_phase_name] = DataFrame([zeros(length(T_C)) for _ in new_bulk_ox], new_bulk_ox)
                 Results[string(unique_phase_name, "_prop")] = DataFrame(mass=zeros(length(T_C)))
             end
 

@@ -1,9 +1,19 @@
 using MAGEMin_C
 using DataFrames
 using BasicInterpolators
+using PythonCall
+
+# function polyfit_manual(x::Vector{Float64}, y::Vector{Float64}, deg::Int)
+#     X = [x .^ i for i in 0:deg]'  # Vandermonde matrix
+#     return X \ y  # Least squares fit
+# end
+
+# function polyval(c::Vector{Float64}, x::Float64)
+#     sum(c[i] * x^(i-1) for i in 1:length(c))
+# end
 
 function optimize_entropy(T, s, P, data, bulk, bulk_ox, n)
-    T_save = range(T, step=-0.75, length=n)
+    T_save = collect(range(T, step=-0.75, length=n))
     P_test = fill(P, n)
     out_save = multi_point_minimization(P_test, T_save, data, X=bulk, Xoxides=bulk_ox, sys_in="wt", progressbar=false)
 
@@ -12,6 +22,53 @@ function optimize_entropy(T, s, P, data, bulk, bulk_ox, n)
     mask = .!ismissing.(s_save)
     coeffs = fit(s_save[mask], T_save[mask], 3)
     return coeffs(s)
+end
+
+function optimize_entropy_4T(T, T_new, s, P, data, bulk, bulk_ox)
+    out_high = single_point_minimization(P, T, data, X=bulk, Xoxides=bulk_ox, sys_in="wt")
+    out_low = single_point_minimization(P, T_new, data, X=bulk, Xoxides=bulk_ox, sys_in="wt")
+
+    if out_low.entropy > s
+        while out_low.entropy > s
+            T_new = T_new - 2
+            out_low = single_point_minimization(P, T_new, data, X=bulk, Xoxides=bulk_ox, sys_in="wt")
+        end
+    end
+
+    T_ave = (T_new + T)/2
+    out_mean = single_point_minimization(P, T_ave, data, X=bulk, Xoxides=bulk_ox, sys_in="wt")
+
+    if out_mean.entropy > s
+        T = T_ave
+    else
+        T_new = T_ave
+    end
+
+    threshold = 0.0001
+    if abs(out_mean.entropy - s)/s > threshold
+        count = 0
+        while abs(out_mean.entropy - s)/s > threshold
+            out_high = single_point_minimization(P, T, data, X=bulk, Xoxides=bulk_ox, sys_in="wt")
+            out_low = single_point_minimization(P, T_new, data, X=bulk, Xoxides=bulk_ox, sys_in="wt")
+            
+            T_ave = (T_new + T)/2
+            out_mean = single_point_minimization(P, T_ave, data, X=bulk, Xoxides=bulk_ox, sys_in="wt")
+        
+            if out_mean.entropy > s
+                T = T_ave
+            else
+                T_new = T_ave
+            end
+            
+            count = count + 1
+            if count > 15
+                break
+            end
+        end
+    end
+
+    # Filter and fit polynomial to estimate T
+    return T_ave
 end
 
 # function AdiabaticDecompressionMelting_new(bulk::Vector{Float64}, T_start_C::Float64, P_start_kbar::Float64, 
@@ -104,185 +161,261 @@ end
 # end
 
 
-function AdiabaticDecompressionMelting(bulk, T_start_C, P_start_kbar, P_end_kbar, dp_kbar, Frac)
+function AdiabaticDecompressionMelting(; comp :: Dict, T_start_C :: Float64, P_start_kbar :: Float64, 
+                                    P_end_kbar :: Float64, dp_kbar :: Float64, Model :: String = "ig",
+                                    fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Float64, Nothing} = 0.0)
+
     P = collect(range(P_start_kbar, P_end_kbar, 1+round(Int,(P_start_kbar - P_end_kbar)/dp_kbar)));
-    bulk_in = bulk
 
-	new_bulk = bulk/sum(bulk);
-	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]	
+    if Model == "Weller2024"
+        Model = "igad"
+    else
+        Model = "ig"
+    end
 
-    data = Initialize_MAGEMin("ig", verbose = false)
+    if fo2_offset === nothing
+        fo2_offset = 0.0
+    end
 
-    T = T_start_C
+    if Model == "ig"
+        bulk = [
+            comp["SiO2_Liq"], comp["Al2O3_Liq"], comp["CaO_Liq"], comp["MgO_Liq"], comp["FeOt_Liq"], 
+            comp["K2O_Liq"], comp["Na2O_Liq"], comp["TiO2_Liq"], 
+            comp["Fe3Fet_Liq"] * (((159.59 / 2) / 71.844) * comp["FeOt_Liq"] - comp["FeOt_Liq"]), 
+            comp["Cr2O3_Liq"], comp["H2O_Liq"]
+        ]
+    else
+        bulk = [
+            comp["SiO2_Liq"], comp["Al2O3_Liq"], comp["CaO_Liq"], comp["MgO_Liq"], comp["FeOt_Liq"], 
+            comp["K2O_Liq"], comp["Na2O_Liq"], comp["TiO2_Liq"], 
+            comp["Fe3Fet_Liq"] * (((159.59 / 2) / 71.844) * comp["FeOt_Liq"] - comp["FeOt_Liq"]), 
+            comp["Cr2O3_Liq"]
+        ]
+    end
+
+    if fo2_buffer !== nothing
+        bulk[9] = 10
+    end
+
+    bulk_in = bulk;
+
+	new_bulk = 100 .* bulk ./sum(bulk);
+    if Model === "igad"
+        new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"]
+    else
+        new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
+    end
+
     Results = Dict()
-    out = single_point_minimization(P[1], T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+    # Results["Conditions"] = DataFrame(T_C = zeros(length(P)), P_kbar = P)
+    # Results["sys"] = DataFrame([zeros(length(P)) for _ in ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]], ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"])
+
+    data = fo2_buffer !== nothing ? Initialize_MAGEMin(Model, verbose=false, buffer=fo2_buffer) : Initialize_MAGEMin(Model, verbose=false)
+    
+    T = T_start_C
+    out = single_point_minimization(P[1], T_start_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
     s = out.entropy
     println(s)
 
     # Results["Conditions"] = create_dataframe(["T_C", "P_kbar"], length(P))
     # Results["sys"] = create_dataframe(new_bulk_ox, length(P))    
-    Results["Conditions"] = DataFrame(columns = ["T_C", "P_kbar", "s"], data = zeros(length(P), 3));
-    Results["sys"] = DataFrame(columns = new_bulk_ox, data = zeros(length(P), length(new_bulk_ox)));
+    Results["Conditions"] = DataFrame(T_C = zeros(length(P)), P_kbar = zeros(length(P)),s = zeros(length(P)));
+    Results["sys"] = DataFrame([zeros(length(P)) for _ in new_bulk_ox], new_bulk_ox)
     for k in eachindex(P)
         bulk = bulk_in;
         new_bulk = bulk/sum(bulk);
-        
-        print(P[k])
+
         if k > 1
-            # s_check = 0
-            # T_next = T-1
-            # while abs(s_check - s)/s > 0.0001
-            #     gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");
-            #     out = point_wise_minimization(P[k], T_next, gv, z_b, DB, splx_data, sys_in); #PT_minimisation(P[k], T_save[i], bulk); #point_wise_minimization(P[k], T_save[i], gv, z_b, DB, splx_data, sys_in);
-            #     s_check = out.entropy;
-            #     println(s_check)
-            #     if s_check < s
-            #         T_next = T-abs(T-T_next)/2
-            #     else
-            #         diff = abs(T-T_next)
-            #         T = T_next
-            #         T_next = T_next - diff
-            #     end
-            # end
+            T = optimize_entropy_4T(T, T-5, s, P[k], data, new_bulk, new_bulk_ox)
+        end
 
-            n = 4
-            T_save = collect(range(T, T - 3.0, n));
-            P_test = collect(range(P[k], P[k], n));
-            out_save = multi_point_minimization(P_test, T_save, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", progressbar = false);
+        # if k > 1
+        #     # s_check = 0
+        #     # T_next = T-1
+        #     # while abs(s_check - s)/s > 0.0001
+        #     #     gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");
+        #     #     out = point_wise_minimization(P[k], T_next, gv, z_b, DB, splx_data, sys_in); #PT_minimisation(P[k], T_save[i], bulk); #point_wise_minimization(P[k], T_save[i], gv, z_b, DB, splx_data, sys_in);
+        #     #     s_check = out.entropy;
+        #     #     println(s_check)
+        #     #     if s_check < s
+        #     #         T_next = T-abs(T-T_next)/2
+        #     #     else
+        #     #         diff = abs(T-T_next)
+        #     #         T = T_next
+        #     #         T_next = T_next - diff
+        #     #     end
+        #     # end
+
+        #     n = 4
+        #     T_save = collect(range(T, T - 3.0, n));
+        #     P_test = collect(range(P[k], P[k], n));
+        #     out_save = multi_point_minimization(P_test, T_save, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", progressbar = false);
             
-            s_save = zeros(n);
-            for i in eachindex(out_save)
-                s_save[i] = out_save[i].entropy;
-            end
+        #     s_save = zeros(n);
+        #     for i in eachindex(out_save)
+        #         s_save[i] = out_save[i].entropy;
+        #     end
 
-            # Create a Boolean mask to identify non-missing values in s_save
-            mask = .!ismissing.(s_save)
-            T_save = T_save[mask]
-            s_save = s_save[mask]
+        #     # Create a Boolean mask to identify non-missing values in s_save
+        #     mask = .!ismissing.(s_save)
+        #     T_save = T_save[mask]
+        #     s_save = s_save[mask]
 
-            # T_save = zeros(3)
-            # s_save = zeros(3)
-            # for i in eachindex(T_save)
-            #     T_save[i] = T - (i-1)*1
-            #     # gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");
-            #     # out = point_wise_minimization(P[k], T_save[i], gv, z_b, DB, splx_data, sys_in); #PT_minimisation(P[k], T_save[i], bulk); #point_wise_minimization(P[k], T_save[i], gv, z_b, DB, splx_data, sys_in);
-            #     out = single_point_minimization(P[k], T_save[i], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
-            #     s_save[i] = out.entropy;
-            # end
-            # print(T_save)
+        #     # T_save = zeros(3)
+        #     # s_save = zeros(3)
+        #     # for i in eachindex(T_save)
+        #     #     T_save[i] = T - (i-1)*1
+        #     #     # gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");
+        #     #     # out = point_wise_minimization(P[k], T_save[i], gv, z_b, DB, splx_data, sys_in); #PT_minimisation(P[k], T_save[i], bulk); #point_wise_minimization(P[k], T_save[i], gv, z_b, DB, splx_data, sys_in);
+        #     #     out = single_point_minimization(P[k], T_save[i], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+        #     #     s_save[i] = out.entropy;
+        #     # end
+        #     # print(T_save)
 
-            coeffs = fit(s_save, T_save, 3);
-            T_next = coeffs(s);
+        #     coeffs = fit(s_save, T_save, 3);
+        #     T_next = coeffs(s);
 
-            # p = CubicSplineInterpolator(reverse(T_save),reverse(s_save),NoBoundaries());
-            # T_check = collect(range(maximum(T_save), minimum(T_save), 101));
-            # s_check = zeros(101)
-            # for i in eachindex(s_check)
-            #     s_check[i] = p(T_check[i]);
-            # end
-            # s_diff = abs.(s_check .- s);
-            # T_next = T_check[argmin(s_diff)];
-            # T_next = p(s);
+        #     # p = CubicSplineInterpolator(reverse(T_save),reverse(s_save),NoBoundaries());
+        #     # T_check = collect(range(maximum(T_save), minimum(T_save), 101));
+        #     # s_check = zeros(101)
+        #     # for i in eachindex(s_check)
+        #     #     s_check[i] = p(T_check[i]);
+        #     # end
+        #     # s_diff = abs.(s_check .- s);
+        #     # T_next = T_check[argmin(s_diff)];
+        #     # T_next = p(s);
             
             
-            # print(T_next)
-            # gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");
-            # out = point_wise_minimization(P[k], T_next, gv, z_b, DB, splx_data, sys_in); #PT_minimisation(P[k], T, bulk); #point_wise_minimization(P[k], T, gv, z_b, DB, splx_data, sys_in);
-            out = single_point_minimization(P[k], T_next, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+        #     # print(T_next)
+        #     # gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");
+        #     # out = point_wise_minimization(P[k], T_next, gv, z_b, DB, splx_data, sys_in); #PT_minimisation(P[k], T, bulk); #point_wise_minimization(P[k], T, gv, z_b, DB, splx_data, sys_in);
+        #     out = single_point_minimization(P[k], T_next, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
 
-            s_check = out.entropy;
-            if abs(s_check - s)/s > 0.0001
-                while abs(s_check - s)/s > 0.0001
-                    n = n*2
-                    T_save = collect(range(T, T - 3.0, n));
-                    P_test = collect(range(P[k], P[k], n));
-                    out_save = multi_point_minimization(P_test, T_save, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", progressbar = false);
+        #     s_check = out.entropy;
+        #     if abs(s_check - s)/s > 0.0001
+        #         while abs(s_check - s)/s > 0.0001
+        #             n = n*2
+        #             T_save = collect(range(T, T - 3.0, n));
+        #             P_test = collect(range(P[k], P[k], n));
+        #             out_save = multi_point_minimization(P_test, T_save, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", progressbar = false);
             
-                    s_save = zeros(n);
-                    for i in eachindex(out_save)
-                        s_save[i] = out_save[i].entropy;
-                    end
+        #             s_save = zeros(n);
+        #             for i in eachindex(out_save)
+        #                 s_save[i] = out_save[i].entropy;
+        #             end
                     
-                    # Create a Boolean mask to identify non-missing values in s_save
-                    mask = .!ismissing.(s_save)
-                    T_save = T_save[mask]
-                    s_save = s_save[mask]
+        #             # Create a Boolean mask to identify non-missing values in s_save
+        #             mask = .!ismissing.(s_save)
+        #             T_save = T_save[mask]
+        #             s_save = s_save[mask]
 
-                    # T_new = zeros(n)
-                    # s_new = zeros(n)
-                    # for i in eachindex(T_new)
-                    #     T_new[i] = T - (i-1)*(2.5/n)
-                    #     # gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");
-                    #     # out = point_wise_minimization(P[k], T_new[i], gv, z_b, DB, splx_data, sys_in); #PT_minimisation(P[k], T_save[i], bulk); #point_wise_minimization(P[k], T_save[i], gv, z_b, DB, splx_data, sys_in);
-                    #     out = single_point_minimization(P[k], T_new[i], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
-                    #     s_new[i] = out.entropy;
-                    # end
-                    coeffs = fit(s_save, T_save, 3);
-                    T_next = coeffs(s);
+        #             # T_new = zeros(n)
+        #             # s_new = zeros(n)
+        #             # for i in eachindex(T_new)
+        #             #     T_new[i] = T - (i-1)*(2.5/n)
+        #             #     # gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");
+        #             #     # out = point_wise_minimization(P[k], T_new[i], gv, z_b, DB, splx_data, sys_in); #PT_minimisation(P[k], T_save[i], bulk); #point_wise_minimization(P[k], T_save[i], gv, z_b, DB, splx_data, sys_in);
+        #             #     out = single_point_minimization(P[k], T_new[i], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+        #             #     s_new[i] = out.entropy;
+        #             # end
+        #             coeffs = fit(s_save, T_save, 3);
+        #             T_next = coeffs(s);
 
-                    # p = CubicSplineInterpolator(reverse(T_new),reverse(s_new), NoBoundaries())
-                    # T_check = collect(range(maximum(T_new), minimum(T_new), 101));
-                    # s_check = zeros(101)
-                    # for i in eachindex(s_check)
-                    #     s_check[i] = p(T_check[i]);
-                    # end
-                    # s_diff = abs.(s_check .- s);
-                    # T_next = T_check[argmin(s_diff)];
+        #             # p = CubicSplineInterpolator(reverse(T_new),reverse(s_new), NoBoundaries())
+        #             # T_check = collect(range(maximum(T_new), minimum(T_new), 101));
+        #             # s_check = zeros(101)
+        #             # for i in eachindex(s_check)
+        #             #     s_check[i] = p(T_check[i]);
+        #             # end
+        #             # s_diff = abs.(s_check .- s);
+        #             # T_next = T_check[argmin(s_diff)];
                     
-                    # print(T)
-                    # gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");
-                    # out = point_wise_minimization(P[k], T_next, gv, z_b, DB, splx_data, sys_in); #PT_minimisation(P[k], T, bulk); #point_wise_minimization(P[k], T, gv, z_b, DB, splx_data, sys_in);
-                    out = single_point_minimization(P[k], T_next, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
-                    s_check = out.entropy;
-                    if n > 20
-                        T = T_next
-                        break
-                    end
-                end
-            end
-            T = T_next
+        #             # print(T)
+        #             # gv = define_bulk_rock(gv, new_bulk, new_bulk_ox, sys_in, "ig");
+        #             # out = point_wise_minimization(P[k], T_next, gv, z_b, DB, splx_data, sys_in); #PT_minimisation(P[k], T, bulk); #point_wise_minimization(P[k], T, gv, z_b, DB, splx_data, sys_in);
+        #             out = single_point_minimization(P[k], T_next, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+        #             s_check = out.entropy;
+        #             if n > 20
+        #                 T = T_next
+        #                 break
+        #             end
+        #         end
+        #     end
+        #     T = T_next
             
-        end       
-    
+        # end       
+        
+        out = single_point_minimization(P[k], T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+
         Phase = out.ph;
         Oxides = out.oxides;
         Type = out.ph_type;
         
-        iloc(Results["Conditions"])[k] = Dict("T_C" => T, "P_kbar" => P[k], "s" => out.entropy);
-        iloc(Results["sys"])[k] = Dict(zip(Oxides, out.bulk));
+        # iloc(Results["Conditions"])[k] = Dict("T_C" => T, "P_kbar" => P[k], "s" => out.entropy);
+        # iloc(Results["sys"])[k] = Dict(zip(Oxides, out.bulk));
         
-        if length(Phase) > 0	
-            phase_counts = Dict{String, Int}()  # Counter for phases
+        # if length(Phase) > 0	
+        #     phase_counts = Dict{String, Int}()  # Counter for phases
 
-            i = 0
-            j = 0
-            for index in eachindex(Phase)
-                phase_name = string(Phase[index])
-                phase_counts[phase_name] = get(phase_counts, phase_name, 0) + 1
-                unique_phase_name = string(phase_name, phase_counts[phase_name])
+        #     i = 0
+        #     j = 0
+        #     for index in eachindex(Phase)
+        #         phase_name = string(Phase[index])
+        #         phase_counts[phase_name] = get(phase_counts, phase_name, 0) + 1
+        #         unique_phase_name = string(phase_name, phase_counts[phase_name])
 
-                if !(unique_phase_name in keys(Results))
-                    # Results[string(Phase[index])] = create_dataframe(new_bulk_ox, length(P))  
-                    # Results[string(Phase[index],"_prop")] = create_dataframe(["Mass"], length(P)) 
-                    Results[unique_phase_name] = DataFrame(columns = new_bulk_ox, data = zeros(length(P), length(new_bulk_ox)));
-                    Results[string(unique_phase_name,"_prop")] = DataFrame(columns = ["mass"], data = zeros(length(P), 1));
-                end
+        #         if !(unique_phase_name in keys(Results))
+        #             # Results[string(Phase[index])] = create_dataframe(new_bulk_ox, length(P))  
+        #             # Results[string(Phase[index],"_prop")] = create_dataframe(["Mass"], length(P)) 
+        #             Results[unique_phase_name] = DataFrame(columns = new_bulk_ox, data = zeros(length(P), length(new_bulk_ox)));
+        #             Results[string(unique_phase_name,"_prop")] = DataFrame(columns = ["mass"], data = zeros(length(P), 1));
+        #         end
 
-                Fraction = out.ph_frac_wt[index];
-                iloc(Results[string(unique_phase_name,"_prop")])[k] = Dict("mass" => Fraction);
-                if Type[index] == 0
-                    i = i + 1
-                    Comp = out.PP_vec[i].Comp_wt;
-                    iloc(Results[unique_phase_name])[k] = Dict(zip(Oxides,Comp));
-                else
-                    j = j +1
-                    Comp = out.SS_vec[j].Comp_wt;
-                    iloc(Results[unique_phase_name])[k] = Dict(zip(Oxides,Comp));
-                end
+        #         Fraction = out.ph_frac_wt[index];
+        #         iloc(Results[string(unique_phase_name,"_prop")])[k] = Dict("mass" => Fraction);
+        #         if Type[index] == 0
+        #             i = i + 1
+        #             Comp = out.PP_vec[i].Comp_wt;
+        #             iloc(Results[unique_phase_name])[k] = Dict(zip(Oxides,Comp));
+        #         else
+        #             j = j +1
+        #             Comp = out.SS_vec[j].Comp_wt;
+        #             iloc(Results[unique_phase_name])[k] = Dict(zip(Oxides,Comp));
+        #         end
+        #     end
+        # end
+        Results["Conditions"][k, :] = (T, P[k], out.entropy)
+        Results["sys"][k, Oxides] .= out.bulk
+
+        phase_counts = Dict{String, Int}()
+        i, j = 0, 0
+
+        for index in eachindex(Phase)
+            phase_name = string(Phase[index])
+            phase_counts[phase_name] = get(phase_counts, phase_name, 0) + 1
+            unique_phase_name = string(phase_name, phase_counts[phase_name])
+
+            if !(unique_phase_name in keys(Results))
+                Results[unique_phase_name] = DataFrame([zeros(length(P)) for _ in new_bulk_ox], new_bulk_ox)
+                Results[string(unique_phase_name, "_prop")] = DataFrame(mass=zeros(length(P)))
+            end
+
+            Frac = out.ph_frac_wt[index]
+            Results[string(unique_phase_name, "_prop")][k, :mass] = Frac
+            
+            if Type[index] == 0
+                i = i + 1
+                Comp = out.PP_vec[i].Comp_wt;
+                Results[unique_phase_name][k, Oxides] .= Comp;
+            else
+                j = j +1
+                Comp = out.SS_vec[j].Comp_wt;
+                Results[unique_phase_name][k, Oxides] .= Comp;
             end
         end
     end
 
     Finalize_MAGEMin(data)
-	return Results
+    Results_df = Dict(k => pytable(v) for (k, v) in Results)
+	return Results_df
 end

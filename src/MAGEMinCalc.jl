@@ -1,6 +1,6 @@
 module MAGEMinCalc
 
-# include("Melting.jl")
+include("Melting.jl")
 include("Crystallisation.jl")
 
 end
