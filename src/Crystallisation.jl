@@ -3,7 +3,8 @@ using PythonCall
 using DataFrames
 
 function findliq(; bulk :: Vector{Float64}, P_kbar :: Float64, T_start_C :: Float64 = 1400.0,
-                fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Float64, Nothing} = 0.0, Model :: String = "ig")
+                fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Float64, Nothing} = 0.0, Model :: String = "ig",
+                suppress :: Union{Vector{String},Nothing} = nothing)
     bulk_in = bulk;
 
     if fo2_offset === nothing
@@ -19,12 +20,24 @@ function findliq(; bulk :: Vector{Float64}, P_kbar :: Float64, T_start_C :: Floa
 
     T = T_start_C;
 
+    if suppress !== nothing
+        rm_list = remove_phases(suppress, Model)
+    end
+
     if fo2_buffer !== nothing
         data = Initialize_MAGEMin(Model, verbose = false, buffer = fo2_buffer)
-        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+        if suppress !== nothing
+            out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list, B = fo2_offset)
+        else
+            out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+        end
     else
         data = Initialize_MAGEMin(Model, verbose = false);
-        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt");
+        if suppress !== nothing
+            out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list)
+        else
+            out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+        end
     end
 
     Liq = ["liq", "fl"];
@@ -41,9 +54,17 @@ function findliq(; bulk :: Vector{Float64}, P_kbar :: Float64, T_start_C :: Floa
             while length(i) < length(PhaseList)
                 T = T + Step[k]
                 if fo2_buffer !== nothing
-                    out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+                    if suppress !== nothing
+                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list, B = fo2_offset)
+                    else
+                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+                    end
                 else
-                    out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                    if suppress !== nothing
+                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list)
+                    else
+                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                    end
                 end
 
                 PhaseList = out.ph
@@ -58,9 +79,17 @@ function findliq(; bulk :: Vector{Float64}, P_kbar :: Float64, T_start_C :: Floa
             while length(i) === length(PhaseList)
                 T = T - Step[k]
                 if fo2_buffer !== nothing
-                    out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+                    if suppress !== nothing
+                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list, B = fo2_offset)
+                    else
+                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+                    end
                 else
-                    out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                    if suppress !== nothing
+                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list)
+                    else
+                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                    end
                 end
 
                 PhaseList = out.ph
@@ -84,7 +113,7 @@ function path(; comp :: Dict, T_start_C :: Union{Float64, Nothing} = nothing, T_
             P_path_bar :: Union{Vector{Float64}, Nothing} = nothing, frac_xtal :: Union{Float64, Bool, Nothing} = false, 
             phases :: Union{Vector{String}, Nothing} = nothing, Model :: String = "ig",
             fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Float64, Nothing} = 0.0,
-            find_liquidus :: Union{Bool, Nothing} = false)
+            find_liquidus :: Union{Bool, Nothing} = false, suppress :: Union{Vector{String},Nothing} = nothing)
 
     Results = Dict()
 
@@ -145,10 +174,10 @@ function path(; comp :: Dict, T_start_C :: Union{Float64, Nothing} = nothing, T_
             # try
                 if typeof(P_path_bar) <: AbstractVector
                     T_Liq = findliq(bulk = bulk, P_kbar = P_path_bar[1] ./ 1000.0, T_start_C = 1400.0,
-                                                fo2_buffer = fo2_buffer, fo2_offset = fo2_offset, Model = model)
+                                                fo2_buffer = fo2_buffer, fo2_offset = fo2_offset, Model = model, suppress = suppress)
                 else
                     T_Liq = findliq(bulk = bulk, P_kbar = P_path_bar / 1000.0, T_start_C = 1400.0,
-                                            fo2_buffer = fo2_buffer, fo2_offset = fo2_offset, Model = model)
+                                            fo2_buffer = fo2_buffer, fo2_offset = fo2_offset, Model = model, suppress = suppress)
                 end
             # catch
             #     return Results
@@ -156,7 +185,7 @@ function path(; comp :: Dict, T_start_C :: Union{Float64, Nothing} = nothing, T_
         elseif !isnothing(P_start_bar)
             # try
                 T_Liq = findliq(bulk = bulk, P_kbar = P_start_bar ./ 1000.0, T_start_C = 1400.0,
-                        fo2_buffer = fo2_buffer, fo2_offset = fo2_offset, Model = model)
+                        fo2_buffer = fo2_buffer, fo2_offset = fo2_offset, Model = model, suppress = suppress)
             # catch
             #     return Results
             # end
@@ -223,7 +252,7 @@ function path(; comp :: Dict, T_start_C :: Union{Float64, Nothing} = nothing, T_
     P = collect(P)
 
     Results = path_main(bulk = bulk, T_C = T, P_kbar = P./1000.0, frac_xtal = frac_xtal, phases = phases,
-                        Model = model, fo2_buffer = fo2_buffer, fo2_offset = fo2_offset)
+                        Model = model, fo2_buffer = fo2_buffer, fo2_offset = fo2_offset, suppress = suppress)
 
     return Results
 end
@@ -391,7 +420,7 @@ end
 function path_main(; bulk::Vector{Float64}, T_C::Vector{Float64}, P_kbar::Vector{Float64}, 
     frac_xtal::Union{Float64, Bool} = false, phases::Union{Vector{String}, Nothing} = nothing,
     Model::String = "ig", fo2_buffer::Union{String, Nothing} = nothing, 
-    fo2_offset::Union{Float64, Nothing} = 0.0)
+    fo2_offset::Union{Float64, Nothing} = 0.0, suppress = suppress)
 
     if fo2_buffer !== nothing
         bulk[9] = 10
@@ -416,11 +445,23 @@ function path_main(; bulk::Vector{Float64}, T_C::Vector{Float64}, P_kbar::Vector
     println(Model)
     data = fo2_buffer !== nothing ? Initialize_MAGEMin(Model, verbose=false, buffer=fo2_buffer) : Initialize_MAGEMin(Model, verbose=false)
 
+    if suppress !== nothing
+        rm_list = remove_phases(suppress, Model)
+    end
+
     for k in eachindex(T_C)
         if fo2_buffer !== nothing
-            out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+            if suppress !== nothing
+                out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, rm_list = rm_list)
+            else
+                out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+            end
         else
-            out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+            if suppress !== nothing
+                out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list)
+            else
+                out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+            end
         end
 
         Phase = out.ph;

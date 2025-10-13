@@ -1,7 +1,7 @@
 name = "MAGEMinCalc"
 uuid = "dd69d18c-a947-4316-a873-d8ea006ff1b2"
 authors = ["Matthew Gleeson"]
-version = "0.4.4"
+version = "0.4.5"
 
 [deps]
 BasicInterpolators = "26cce99e-4866-4b6d-ab74-862489e035e0"
