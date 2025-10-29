@@ -23,16 +23,15 @@ function findliq(; bulk :: Vector{Float64}, P_kbar :: Float64, T_start_C :: Floa
     if suppress !== nothing
         rm_list = remove_phases(suppress, Model)
     end
-
+    
+    data = fo2_buffer !== nothing ? Initialize_MAGEMin(Model, verbose=false, buffer=fo2_buffer) : Initialize_MAGEMin(Model, verbose=false)
     if fo2_buffer !== nothing
-        data = Initialize_MAGEMin(Model, verbose = false, buffer = fo2_buffer)
         if suppress !== nothing
             out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list, B = fo2_offset)
         else
             out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
         end
     else
-        data = Initialize_MAGEMin(Model, verbose = false);
         if suppress !== nothing
             out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list)
         else
@@ -311,8 +310,8 @@ function equilibrate(; bulk :: Any, P_kbar :: Vector{Float64}, T_C :: Vector{Flo
     new_bulk_ox_saved =  new_bulk_ox #["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
     Results = Dict()
     Results["Conditions"] = DataFrame(T_C = T_C, P_kbar = P_kbar)
-    Results["sys"] = DataFrame(zeros(length(T_C), length(new_bulk_ox_saved)), :auto)
-    rename!(Results["sys"], new_bulk_ox_saved)
+    # Results["sys"] = DataFrame(zeros(length(T_C), length(new_bulk_ox_saved)), :auto)
+    # rename!(Results["sys"], new_bulk_ox_saved)
 
     for k in eachindex(T_C)
         Phase = out[k].ph
@@ -324,7 +323,7 @@ function equilibrate(; bulk :: Any, P_kbar :: Vector{Float64}, T_C :: Vector{Flo
         Type = out[k].ph_type
 
         Results["Conditions"][k, :] .= (T_C[k], P_kbar[k])
-        Results["sys"][k, Oxides] .= out[k].bulk
+        # Results["sys"][k, Oxides] .= out[k].bulk
 
         if !isempty(Phase)
             phase_counts = Dict{String, Int}()
@@ -366,17 +365,19 @@ function findLiq_multi(bulk, P_kbar, T_start_C)
     else
         new_bulk = bulk
     end
-
-    println(new_bulk)
-    println(typeof(new_bulk))
     
-    new_bulk_ox = ["SiO2", "Al2O3", "CaO", "MgO", "FeO", "K2O", "Na2O", "TiO2", "O", "Cr2O3", "H2O"]
-
+    new_bulk = new_bulk/sum(new_bulk);
+    if Model === "ig"
+    	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"];
+    else
+    	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"];
+    end
+    
     T_C = T_start_C
     T_C_high = copy(T_C)
     T_C_low = copy(T_C)
 
-    data = Initialize_MAGEMin("ig", verbose = false)
+    data = fo2_buffer !== nothing ? Initialize_MAGEMin(Model, verbose=false, buffer=fo2_buffer) : Initialize_MAGEMin(Model, verbose=false)
 
     Liq = ["liq", "fl"]
     Step = collect(1:10)
@@ -449,19 +450,39 @@ function path_main(; bulk::Vector{Float64}, T_C::Vector{Float64}, P_kbar::Vector
         rm_list = remove_phases(suppress, Model)
     end
 
-    for k in eachindex(T_C)
+    if !frac_xtal
         if fo2_buffer !== nothing
             if suppress !== nothing
-                out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, rm_list = rm_list)
+                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, rm_list = rm_list)
             else
-                out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
             end
         else
             if suppress !== nothing
-                out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list)
+                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list)
             else
-                out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
             end
+        end
+        Out_all = deepcopy(out)
+    end
+    for k in eachindex(T_C)
+        if frac_xtal
+            if fo2_buffer !== nothing
+                if suppress !== nothing
+                    out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, rm_list = rm_list)
+                else
+                    out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+                end
+            else
+                if suppress !== nothing
+                    out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list)
+                else
+                    out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                end
+            end
+        else
+            out = Out_all[k]
         end
 
         Phase = out.ph;
@@ -501,10 +522,10 @@ function path_main(; bulk::Vector{Float64}, T_C::Vector{Float64}, P_kbar::Vector
             end
         end
 
-        if !frac_xtal
-            bulk = copy(bulk_in)
-            new_bulk = 100 .* bulk ./ sum(bulk)
-        elseif frac_xtal
+        # if !frac_xtal
+        #     bulk = copy(bulk_in)
+        #     new_bulk = 100 .* bulk ./ sum(bulk)
+        if frac_xtal
             comp = Results["liq1"][k, :]
             if Model == "ig"
                 bulk = [comp["SiO2"], comp["Al2O3"], comp["CaO"], comp["MgO"], comp["FeO"], comp["K2O"], comp["Na2O"], comp["TiO2"], comp["O"], comp["Cr2O3"], comp["H2O"]]
@@ -516,7 +537,6 @@ function path_main(; bulk::Vector{Float64}, T_C::Vector{Float64}, P_kbar::Vector
                 new_bulk[9] = 4.0
             end
         end
-
         if phases !== nothing && all(str in keys(Results) for str in phases)
             break
         end
