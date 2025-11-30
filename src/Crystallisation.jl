@@ -309,7 +309,18 @@ function equilibrate(; bulk :: Any, P_kbar :: Vector{Float64}, T_C :: Vector{Flo
     
     new_bulk_ox_saved =  new_bulk_ox #["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
     Results = Dict()
-    Results["Conditions"] = DataFrame(T_C = T_C, P_kbar = P_kbar)
+    Results["Conditions"] = DataFrame(Symbol("T_C") => T_C, 
+                                    Symbol("P_kbar") => P_kbar, 
+                                    Symbol("mass_g") => zeros(length(T_C)),
+                                    Symbol("mass_per_mole_g/mol") => zeros(length(T_C)),
+                                    Symbol("rho_kg/m3") => zeros(length(T_C)),
+                                    Symbol("eta_Pa.s") => zeros(length(T_C)),
+                                    Symbol("s_kJ/K") => zeros(length(T_C)),
+                                    Symbol("h_kJ/mol") => zeros(length(T_C)),
+                                    Symbol("alpha_1/K") => zeros(length(T_C)),
+                                    Symbol("cp_J/kg/K") => zeros(length(T_C)),
+                                    Symbol("log10(fO2)") => zeros(length(T_C)),
+                                    Symbol("log10(dQFM)") => zeros(length(T_C)))
     # Results["sys"] = DataFrame(zeros(length(T_C), length(new_bulk_ox_saved)), :auto)
     # rename!(Results["sys"], new_bulk_ox_saved)
 
@@ -318,12 +329,18 @@ function equilibrate(; bulk :: Any, P_kbar :: Vector{Float64}, T_C :: Vector{Flo
         if fo2_buffer !== nothing
             filter!(x -> x != fo2_buffer, Phase)
         end 
-        println(Phase)
         Oxides = out[k].oxides
         Type = out[k].ph_type
 
-        Results["Conditions"][k, :] .= (T_C[k], P_kbar[k])
-        # Results["sys"][k, Oxides] .= out[k].bulk
+        Results["Conditions"][k, :] = (T_C[k], P_kbar[k], 100.0,
+                                    (out[k].M_sys isa AbstractVector ? out[k].M_sys[1] : out[k].M_sys),
+                                    (out[k].rho isa AbstractVector ? out[k].rho[1] : out[k].rho),
+                                    (out[k].eta_M isa AbstractVector ? out[k].eta_M[1] : out[k].eta_M),
+                                    (out[k].entropy isa AbstractVector ? out[k].entropy[1] : out[k].entropy),
+                                    (out[k].enthalpy isa AbstractVector ? out[k].enthalpy[1] : out[k].enthalpy),
+                                    (out[k].alpha isa AbstractVector ? out[k].alpha[1] : out[k].alpha),
+                                    (out[k].s_cp isa AbstractVector ? out[k].s_cp[1] : out[k].s_cp),
+                                    out[k].fO2[1], out[k].dQFM[1])
 
         if !isempty(Phase)
             phase_counts = Dict{String, Int}()
@@ -334,21 +351,46 @@ function equilibrate(; bulk :: Any, P_kbar :: Vector{Float64}, T_C :: Vector{Flo
                 unique_phase_name = string(phase_name, phase_counts[phase_name])
 
                 if !(unique_phase_name in keys(Results))
-                    Results[unique_phase_name] = DataFrame(zeros(length(T_C), length(new_bulk_ox_saved)), :auto)
-                    rename!(Results[unique_phase_name], new_bulk_ox_saved)
-                    Results[string(unique_phase_name, "_prop")] = DataFrame(mass=zeros(length(T_C)))
+                    Results[unique_phase_name] = DataFrame([zeros(length(T_C)) for _ in new_bulk_ox], new_bulk_ox)
+                    Results[string(unique_phase_name, "_prop")] = DataFrame(Symbol("mass_g")=>zeros(length(T_C)),
+                                                                            Symbol("mass%")=>zeros(length(T_C)),
+                                                                            Symbol("mol%")=>zeros(length(T_C)),
+                                                                            Symbol("vol%")=>zeros(length(T_C)),
+                                                                            Symbol("rho_kg/m3")=>zeros(length(T_C)),
+                                                                            Symbol("cp_J/kg/K")=>zeros(length(T_C)),
+                                                                            Symbol("alpha_1/K")=>zeros(length(T_C)),
+                                                                            Symbol("s_kJ/K")=>zeros(length(T_C)),
+                                                                            Symbol("h_kJ/mol")=>zeros(length(T_C)))
                 end
 
-                Frac = out[k].ph_frac_wt[index]
-                Results[string(unique_phase_name, "_prop")][k, :mass] = Frac
+                # Frac = out[k].ph_frac_wt[index]
+                # Results[string(unique_phase_name, "_prop")][k, :mass] = Frac
                 if Type[index] == 0
                     i += 1
                     Comp = out[k].PP_vec[i].Comp_wt
                     Results[unique_phase_name][k, Oxides] .= Comp
+                    Results[string(unique_phase_name, "_prop")][k,:] = (100.0*out[k].ph_frac_wt[index],
+                                                                        out[k].ph_frac_wt[index],
+                                                                        out[k].ph_frac[index],
+                                                                        out[k].ph_frac_vol[index],
+                                                                        out[k].PP_vec[i].rho,
+                                                                        out[k].PP_vec[i].cp,
+                                                                        out[k].PP_vec[i].alpha,
+                                                                        out[k].PP_vec[i].entropy,
+                                                                        out[k].PP_vec[i].enthalpy)
                 else
                     j += 1
                     Comp = out[k].SS_vec[j].Comp_wt
                     Results[unique_phase_name][k, Oxides] .= Comp
+                    Results[string(unique_phase_name, "_prop")][k,:] = (100.0*out[k].ph_frac_wt[index],
+                                                                        out[k].ph_frac_wt[index],
+                                                                        out[k].ph_frac[index],
+                                                                        out[k].ph_frac_vol[index],
+                                                                        out[k].SS_vec[j].rho,
+                                                                        out[k].SS_vec[j].cp,
+                                                                        out[k].SS_vec[j].alpha,
+                                                                        out[k].SS_vec[j].entropy,
+                                                                        out[k].SS_vec[j].enthalpy)
                 end
             end
         end
@@ -421,7 +463,9 @@ end
 function path_main(; bulk::Vector{Float64}, T_C::Vector{Float64}, P_kbar::Vector{Float64}, 
     frac_xtal::Union{Float64, Bool} = false, phases::Union{Vector{String}, Nothing} = nothing,
     Model::String = "ig", fo2_buffer::Union{String, Nothing} = nothing, 
-    fo2_offset::Union{Float64, Nothing} = 0.0, suppress = suppress)
+    fo2_offset::Union{Float64, Nothing} = 0.0, suppress::Union{Vector{String},String,Nothing} = nothing)
+
+    mass = 100.0
 
     if fo2_buffer !== nothing
         bulk[9] = 10
@@ -440,10 +484,21 @@ function path_main(; bulk::Vector{Float64}, T_C::Vector{Float64}, P_kbar::Vector
         new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
     end
     Results = Dict()
-    Results["Conditions"] = DataFrame(T_C = T_C, P_kbar = P_kbar)
     Results["sys"] = DataFrame([zeros(length(T_C)) for _ in new_bulk_ox], new_bulk_ox)
+    Results["Conditions"] = DataFrame(Symbol("T_C") => T_C, 
+                                    Symbol("P_kbar") => P_kbar, 
+                                    Symbol("mass_g") => zeros(length(T_C)),
+                                    Symbol("mass_per_mole_g/mol") => zeros(length(T_C)),
+                                    Symbol("rho_kg/m3") => zeros(length(T_C)),
+                                    Symbol("eta_Pa.s") => zeros(length(T_C)),
+                                    Symbol("s_kJ/K") => zeros(length(T_C)),
+                                    Symbol("h_kJ/mol") => zeros(length(T_C)),
+                                    Symbol("alpha_1/K") => zeros(length(T_C)),
+                                    Symbol("cp_J/kg/K") => zeros(length(T_C)),
+                                    Symbol("log10(fO2)") => zeros(length(T_C)),
+                                    Symbol("log10(dQFM)") => zeros(length(T_C)))
+    # Results["sys"] = DataFrame([zeros(length(T_C)) for _ in new_bulk_ox], new_bulk_ox)
 
-    println(Model)
     data = fo2_buffer !== nothing ? Initialize_MAGEMin(Model, verbose=false, buffer=fo2_buffer) : Initialize_MAGEMin(Model, verbose=false)
 
     if suppress !== nothing
@@ -492,8 +547,17 @@ function path_main(; bulk::Vector{Float64}, T_C::Vector{Float64}, P_kbar::Vector
         Oxides = out.oxides;
         Type = out.ph_type;
 
-        Results["Conditions"][k, :] = (T_C[k], P_kbar[k])
-        Results["sys"][k, Oxides] .= out.bulk
+        Results["Conditions"][k, :] = (T_C[k], P_kbar[k], mass, 
+                                    (out.M_sys isa AbstractVector ? out.M_sys[1] : out.M_sys),
+                                    (out.rho isa AbstractVector ? out.rho[1] : out.rho),
+                                    (out.eta_M isa AbstractVector ? out.eta_M[1] : out.eta_M),
+                                    (out.entropy isa AbstractVector ? out.entropy[1] : out.entropy),
+                                    (out.enthalpy isa AbstractVector ? out.enthalpy[1] : out.enthalpy),
+                                    (out.alpha isa AbstractVector ? out.alpha[1] : out.alpha),
+                                    (out.s_cp isa AbstractVector ? out.s_cp[1] : out.s_cp),
+                                    out.fO2[1], out.dQFM[1])
+        Results["sys"][k,Oxides] .= out.bulk_wt
+        # Results["sys"][k, Oxides] .= out.bulk
 
         phase_counts = Dict{String, Int}()
         i, j = 0, 0
@@ -505,20 +569,46 @@ function path_main(; bulk::Vector{Float64}, T_C::Vector{Float64}, P_kbar::Vector
 
             if !(unique_phase_name in keys(Results))
                 Results[unique_phase_name] = DataFrame([zeros(length(T_C)) for _ in new_bulk_ox], new_bulk_ox)
-                Results[string(unique_phase_name, "_prop")] = DataFrame(mass=zeros(length(T_C)))
+                Results[string(unique_phase_name, "_prop")] = DataFrame(Symbol("mass_g")=>zeros(length(T_C)),
+                                                                        Symbol("mass%")=>zeros(length(T_C)),
+                                                                        Symbol("mol%")=>zeros(length(T_C)),
+                                                                        Symbol("vol%")=>zeros(length(T_C)),
+                                                                        Symbol("rho_kg/m3")=>zeros(length(T_C)),
+                                                                        Symbol("cp_J/kg/K")=>zeros(length(T_C)),
+                                                                        Symbol("alpha_1/K")=>zeros(length(T_C)),
+                                                                        Symbol("s_kJ/K")=>zeros(length(T_C)),
+                                                                        Symbol("h_kJ/mol")=>zeros(length(T_C)))
             end
 
-            Frac = out.ph_frac_wt[index]
-            Results[string(unique_phase_name, "_prop")][k, :mass] = Frac
+            # Frac = out.ph_frac_wt[index]
+            # Results[string(unique_phase_name, "_prop")][k, :mass] = Frac
             
             if Type[index] == 0
                 i = i + 1
                 Comp = out.PP_vec[i].Comp_wt;
                 Results[unique_phase_name][k, Oxides] .= Comp;
+                Results[string(unique_phase_name, "_prop")][k,:] = (mass*out.ph_frac_wt[index],
+                                                                    out.ph_frac_wt[index],
+                                                                    out.ph_frac[index],
+                                                                    out.ph_frac_vol[index],
+                                                                    out.PP_vec[i].rho,
+                                                                    out.PP_vec[i].cp,
+                                                                    out.PP_vec[i].alpha,
+                                                                    out.PP_vec[i].entropy,
+                                                                    out.PP_vec[i].enthalpy)
             else
                 j = j +1
                 Comp = out.SS_vec[j].Comp_wt;
                 Results[unique_phase_name][k, Oxides] .= Comp;
+                Results[string(unique_phase_name, "_prop")][k,:] = (mass*out.ph_frac_wt[index],
+                                                                    out.ph_frac_wt[index],
+                                                                    out.ph_frac[index],
+                                                                    out.ph_frac_vol[index],
+                                                                    out.SS_vec[j].rho,
+                                                                    out.SS_vec[j].cp,
+                                                                    out.SS_vec[j].alpha,
+                                                                    out.SS_vec[j].entropy,
+                                                                    out.SS_vec[j].enthalpy)
             end
         end
 
@@ -536,6 +626,8 @@ function path_main(; bulk::Vector{Float64}, T_C::Vector{Float64}, P_kbar::Vector
             if fo2_buffer !== nothing
                 new_bulk[9] = 4.0
             end
+
+            mass = mass*Results["liq1_prop"][k,"mass%"]
         end
         if phases !== nothing && all(str in keys(Results) for str in phases)
             break

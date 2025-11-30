@@ -318,11 +318,25 @@ function AdiabaticDecompressionMelting(; comp :: Dict, T_start_C :: Union{Float6
         s = out.entropy
     end
 
-    Results["Conditions"] = DataFrame(T_C = zeros(length(P)), P_kbar = zeros(length(P)),s = zeros(length(P)));
+    # Results["Conditions"] = DataFrame(T_C = zeros(length(P)), P_kbar = zeros(length(P)),s = zeros(length(P)));
+    Results["Conditions"] = DataFrame(Symbol("T_C") => zeros(length(P)), 
+                                    Symbol("P_kbar") => zeros(length(P)), 
+                                    Symbol("mass_g") => zeros(length(P)),
+                                    Symbol("mass_per_mole_g/mol") => zeros(length(P)),
+                                    Symbol("rho_kg/m3") => zeros(length(P)),
+                                    Symbol("eta_Pa.s") => zeros(length(P)),
+                                    Symbol("s_kJ/K") => zeros(length(P)),
+                                    Symbol("h_kJ/mol") => zeros(length(P)),
+                                    Symbol("alpha_1/K") => zeros(length(P)),
+                                    Symbol("cp_J/kg/K") => zeros(length(P)),
+                                    Symbol("log10(fO2)") => zeros(length(P)),
+                                    Symbol("log10(dQFM)") => zeros(length(P)))
     # Results["sys"] = DataFrame([zeros(length(P)) for _ in new_bulk_ox], new_bulk_ox)
 
     # helper to safely extract first element or return scalar
     getfirst(x) = x isa AbstractVector ? x[1] : x
+
+    mass = 100.0
 
     for k in eachindex(P)
         bulk = bulk_in;
@@ -343,7 +357,16 @@ function AdiabaticDecompressionMelting(; comp :: Dict, T_start_C :: Union{Float6
         Oxides = out.oxides;
         Type = out.ph_type;
 
-        Results["Conditions"][k, :] = (T, P[k], getfirst(out.entropy))
+        # Results["Conditions"][k, :] = (T, P[k], getfirst(out.entropy))
+        Results["Conditions"][k, :] = (T, P[k], mass,
+                                    (out.M_sys isa AbstractVector ? out.M_sys[1] : out.M_sys),
+                                    (out.rho isa AbstractVector ? out.rho[1] : out.rho),
+                                    (out.eta_M isa AbstractVector ? out.eta_M[1] : out.eta_M),
+                                    (out.entropy isa AbstractVector ? out.entropy[1] : out.entropy),
+                                    (out.enthalpy isa AbstractVector ? out.enthalpy[1] : out.enthalpy),
+                                    (out.alpha isa AbstractVector ? out.alpha[1] : out.alpha),
+                                    (out.s_cp isa AbstractVector ? out.s_cp[1] : out.s_cp),
+                                    out.fO2[1], out.dQFM[1])
         # Results["sys"][k, Oxides] .= out.bulk
 
         phase_counts = Dict{String, Int}()
@@ -356,20 +379,46 @@ function AdiabaticDecompressionMelting(; comp :: Dict, T_start_C :: Union{Float6
 
             if !(unique_phase_name in keys(Results))
                 Results[unique_phase_name] = DataFrame([zeros(length(P)) for _ in new_bulk_ox], new_bulk_ox)
-                Results[string(unique_phase_name, "_prop")] = DataFrame(mass=zeros(length(P)))
+                Results[string(unique_phase_name, "_prop")] = DataFrame(Symbol("mass_g")=>zeros(length(P)),
+                                                                        Symbol("mass%")=>zeros(length(P)),
+                                                                        Symbol("mol%")=>zeros(length(P)),
+                                                                        Symbol("vol%")=>zeros(length(P)),
+                                                                        Symbol("rho_kg/m3")=>zeros(length(P)),
+                                                                        Symbol("cp_J/kg/K")=>zeros(length(P)),
+                                                                        Symbol("alpha_1/K")=>zeros(length(P)),
+                                                                        Symbol("s_kJ/K")=>zeros(length(P)),
+                                                                        Symbol("h_kJ/mol")=>zeros(length(P)))
             end
 
-            Frac = out.ph_frac_wt[index]
-            Results[string(unique_phase_name, "_prop")][k, :mass] = Frac
+            # Frac = out.ph_frac_wt[index]
+            # Results[string(unique_phase_name, "_prop")][k, :mass] = Frac
             
             if Type[index] == 0
                 i = i + 1
                 Comp = out.PP_vec[i].Comp_wt;
                 Results[unique_phase_name][k, Oxides] .= Comp;
+                Results[string(unique_phase_name, "_prop")][k,:] = (100.0*out.ph_frac_wt[index],
+                                                                    out.ph_frac_wt[index],
+                                                                    out.ph_frac[index],
+                                                                    out.ph_frac_vol[index],
+                                                                    out.PP_vec[i].rho,
+                                                                    out.PP_vec[i].cp,
+                                                                    out.PP_vec[i].alpha,
+                                                                    out.PP_vec[i].entropy,
+                                                                    out.PP_vec[i].enthalpy)
             else
                 j = j +1
                 Comp = out.SS_vec[j].Comp_wt;
                 Results[unique_phase_name][k, Oxides] .= Comp;
+                Results[string(unique_phase_name, "_prop")][k,:] = (100.0*out.ph_frac_wt[index],
+                                                                    out.ph_frac_wt[index],
+                                                                    out.ph_frac[index],
+                                                                    out.ph_frac_vol[index],
+                                                                    out.SS_vec[j].rho,
+                                                                    out.SS_vec[j].cp,
+                                                                    out.SS_vec[j].alpha,
+                                                                    out.SS_vec[j].entropy,
+                                                                    out.SS_vec[j].enthalpy)
             end
         end
     end
