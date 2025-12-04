@@ -130,10 +130,6 @@ function path(; comp :: Dict, T_start_C :: Union{Float64, Nothing} = nothing, T_
         model = "ig"
     end
     
-    if isnothing(comp)
-        throw(Exception("No composition specified"))
-    end
-    
     if !isnothing(P_bar) && isnothing(P_path_bar)
         P_path_bar = P_bar
     end
@@ -211,6 +207,8 @@ function path(; comp :: Dict, T_start_C :: Union{Float64, Nothing} = nothing, T_
             P = P_start_bar
         elseif !isnothing(P_end_bar) && !isnothing(dp_bar)
             P = range(P_start_bar, stop = P_end_bar, length = 1 + round(Int, (P_start_bar - P_end_bar) / dp_bar))
+        elseif !isnothing(P_end_bar) && isnothing(dp_bar)
+            P = range(P_start_bar, stop = P_end_bar, length = length(collect(T)))
         end
     else
         P = P_path_bar
