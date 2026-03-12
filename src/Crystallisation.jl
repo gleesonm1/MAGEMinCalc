@@ -27,15 +27,15 @@ function findliq(; bulk :: Vector{Float64}, P_kbar :: Float64, T_start_C :: Floa
     data = fo2_buffer !== nothing ? Initialize_MAGEMin(Model, verbose=false, buffer=fo2_buffer) : Initialize_MAGEMin(Model, verbose=false)
     if fo2_buffer !== nothing
         if suppress !== nothing
-            out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list, B = fo2_offset)
+            out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list, B = fo2_offset,name_solvus=true )
         else
-            out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+            out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset,name_solvus=true )
         end
     else
         if suppress !== nothing
-            out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list)
+            out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list,name_solvus=true )
         else
-            out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+            out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt",name_solvus=true )
         end
     end
 
@@ -54,15 +54,15 @@ function findliq(; bulk :: Vector{Float64}, P_kbar :: Float64, T_start_C :: Floa
                 T = T + Step[k]
                 if fo2_buffer !== nothing
                     if suppress !== nothing
-                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list, B = fo2_offset)
+                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list, B = fo2_offset,name_solvus=true )
                     else
-                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset,name_solvus=true )
                     end
                 else
                     if suppress !== nothing
-                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list)
+                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list,name_solvus=true )
                     else
-                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt",name_solvus=true )
                     end
                 end
 
@@ -79,15 +79,15 @@ function findliq(; bulk :: Vector{Float64}, P_kbar :: Float64, T_start_C :: Floa
                 T = T - Step[k]
                 if fo2_buffer !== nothing
                     if suppress !== nothing
-                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list, B = fo2_offset)
+                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list, B = fo2_offset,name_solvus=true )
                     else
-                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset,name_solvus=true )
                     end
                 else
                     if suppress !== nothing
-                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list)
+                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list,name_solvus=true )
                     else
-                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                        out = single_point_minimization(P_kbar, T, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt",name_solvus=true )
                     end
                 end
 
@@ -255,7 +255,7 @@ function path(; comp :: Dict, T_start_C :: Union{Float64, Nothing} = nothing, T_
 end
 
 function equilibrate(; bulk :: Any, P_kbar :: Vector{Float64}, T_C :: Vector{Float64},
-    fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Float64, Nothing} = 0.0, 
+    fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Vector{Float64},Float64, Nothing} = 0.0, 
     Model :: String = "ig")
         if isa(bulk, Matrix{<:AbstractFloat})
             new_bulk = [bulk[i, :] for i in 1:size(bulk, 1)]
@@ -298,10 +298,10 @@ function equilibrate(; bulk :: Any, P_kbar :: Vector{Float64}, T_C :: Vector{Flo
     
         if fo2_buffer !== nothing
             data = Initialize_MAGEMin(Model, verbose = false, buffer = fo2_buffer)
-            out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+            out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, name_solvus=true )
         else
             data = Initialize_MAGEMin(Model, verbose = false)
-            out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+            out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", name_solvus=true )
         end
     
     
@@ -425,7 +425,7 @@ function findLiq_multi(bulk, P_kbar, T_start_C)
     for j in eachindex(Step)
         if j == 1
             for _ in 1:10
-                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", name_solvus=true )
                 for k in eachindex(T_C)
                     PhaseList = out[k].ph
                     i = intersect(Liq, PhaseList)
@@ -440,7 +440,7 @@ function findLiq_multi(bulk, P_kbar, T_start_C)
                 T_C .= (T_C_high .+ T_C_low) ./ 2 
             end
         else
-            out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+            out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", name_solvus=true )
             for k in eachindex(T_C)
                 PhaseList = out[k].ph
                 i = intersect(Liq, PhaseList)
@@ -497,24 +497,35 @@ function path_main(; bulk::Vector{Float64}, T_C::Vector{Float64}, P_kbar::Vector
                                     Symbol("log10(dQFM)") => zeros(length(T_C)))
     # Results["sys"] = DataFrame([zeros(length(T_C)) for _ in new_bulk_ox], new_bulk_ox)
 
-    data = fo2_buffer !== nothing ? Initialize_MAGEMin(Model, verbose=false, buffer=fo2_buffer) : Initialize_MAGEMin(Model, verbose=false)
+    if fo2_buffer !== nothing
+        data = Initialize_MAGEMin(Model, verbose=false, buffer=fo2_buffer)
+    else
+        data = Initialize_MAGEMin(Model, verbose=false)
+    end
+    # data = fo2_buffer !== nothing ? Initialize_MAGEMin(Model, verbose=false, buffer=fo2_buffer) : Initialize_MAGEMin(Model, verbose=false)
 
     if suppress !== nothing
         rm_list = remove_phases(suppress, Model)
     end
 
+    if fo2_buffer !== nothing
+        fo2_offset_vec = fill(fo2_offset, length(T_C))
+    else
+        fo2_offset_vec = nothing
+    end
+
     if !frac_xtal
         if fo2_buffer !== nothing
             if suppress !== nothing
-                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, rm_list = rm_list)
+                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset_vec, rm_list = rm_list, name_solvus=true )
             else
-                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset_vec, name_solvus=true )
             end
         else
             if suppress !== nothing
-                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list)
+                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list, name_solvus=true )
             else
-                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", name_solvus=true )
             end
         end
         Out_all = deepcopy(out)
@@ -523,15 +534,15 @@ function path_main(; bulk::Vector{Float64}, T_C::Vector{Float64}, P_kbar::Vector
         if frac_xtal
             if fo2_buffer !== nothing
                 if suppress !== nothing
-                    out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, rm_list = rm_list)
+                    out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, rm_list = rm_list, name_solvus=true )
                 else
-                    out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+                    out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, name_solvus=true )
                 end
             else
                 if suppress !== nothing
-                    out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list)
+                    out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list, name_solvus=true )
                 else
-                    out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+                    out = single_point_minimization(P_kbar[k], T_C[k], data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", name_solvus=true )
                 end
             end
         else
@@ -635,5 +646,6 @@ function path_main(; bulk::Vector{Float64}, T_C::Vector{Float64}, P_kbar::Vector
 
     Finalize_MAGEMin(data)
     Results_df = Dict(k => pytable(v) for (k, v) in Results)
+    Results_df = standardize_mineral_labels(Results_df)
     return Results_df
 end

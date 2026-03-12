@@ -71,28 +71,28 @@ within tolerance.
 """
     if Tp_search
         if fo2_buffer !== nothing
-            out_high = single_point_minimization(P, T, data, X=bulk, Xoxides=bulk_ox, sys_in="wt", B = fo2_offset)
-            out_low = single_point_minimization(P, T_new, data, X=bulk, Xoxides=bulk_ox, sys_in="wt", B = fo2_offset)
+            out_high = single_point_minimization(P, T, data, X=bulk, Xoxides=bulk_ox, sys_in="wt", B = fo2_offset,name_solvus=true)
+            out_low = single_point_minimization(P, T_new, data, X=bulk, Xoxides=bulk_ox, sys_in="wt", B = fo2_offset,name_solvus=true )
         else
-            out_high = single_point_minimization(P, T, data, X=bulk, Xoxides=bulk_ox, sys_in="wt")
-            out_low = single_point_minimization(P, T_new, data, X=bulk, Xoxides=bulk_ox, sys_in="wt")
+            out_high = single_point_minimization(P, T, data, X=bulk, Xoxides=bulk_ox, sys_in="wt",name_solvus=true )
+            out_low = single_point_minimization(P, T_new, data, X=bulk, Xoxides=bulk_ox, sys_in="wt",name_solvus=true )
         end
 
         if out_high.entropy < s
             while out_high.entropy < s
                 T = T + 10
                 if fo2_buffer !== nothing
-                    out_high = single_point_minimization(P, T, data, X=bulk, Xoxides=bulk_ox, sys_in="wt", B = fo2_offset)
+                    out_high = single_point_minimization(P, T, data, X=bulk, Xoxides=bulk_ox, sys_in="wt", B = fo2_offset,name_solvus=true )
                 else
-                    out_high = single_point_minimization(P, T, data, X=bulk, Xoxides=bulk_ox, sys_in="wt")
+                    out_high = single_point_minimization(P, T, data, X=bulk, Xoxides=bulk_ox, sys_in="wt",name_solvus=true )
                 end
             end
         end
     else
         if fo2_buffer !== nothing
-            out_low = single_point_minimization(P, T_new, data, X=bulk, Xoxides=bulk_ox, sys_in="wt", B = fo2_offset)
+            out_low = single_point_minimization(P, T_new, data, X=bulk, Xoxides=bulk_ox, sys_in="wt", B = fo2_offset,name_solvus=true )
         else
-            out_low = single_point_minimization(P, T_new, data, X=bulk, Xoxides=bulk_ox, sys_in="wt")
+            out_low = single_point_minimization(P, T_new, data, X=bulk, Xoxides=bulk_ox, sys_in="wt",name_solvus=true)
         end
     end
 
@@ -100,18 +100,18 @@ within tolerance.
         while out_low.entropy > s
             T_new = T_new - 2
             if fo2_buffer !== nothing
-                out_low = single_point_minimization(P, T_new, data, X=bulk, Xoxides=bulk_ox, sys_in="wt", B = fo2_offset)
+                out_low = single_point_minimization(P, T_new, data, X=bulk, Xoxides=bulk_ox, sys_in="wt", B = fo2_offset,name_solvus=true )
             else
-                out_low = single_point_minimization(P, T_new, data, X=bulk, Xoxides=bulk_ox, sys_in="wt")
+                out_low = single_point_minimization(P, T_new, data, X=bulk, Xoxides=bulk_ox, sys_in="wt",name_solvus=true )
             end
         end
     end
 
     T_ave = (T_new + T)/2
     if fo2_buffer !== nothing
-        out_mean = single_point_minimization(P, T_ave, data, X=bulk, Xoxides=bulk_ox, sys_in="wt", B = fo2_offset)
+        out_mean = single_point_minimization(P, T_ave, data, X=bulk, Xoxides=bulk_ox, sys_in="wt", B = fo2_offset,name_solvus=true )
     else
-        out_mean = single_point_minimization(P, T_ave, data, X=bulk, Xoxides=bulk_ox, sys_in="wt")
+        out_mean = single_point_minimization(P, T_ave, data, X=bulk, Xoxides=bulk_ox, sys_in="wt",name_solvus=true )
     end
 
     for i in 1:max_iter
@@ -130,9 +130,9 @@ within tolerance.
         T_ave = (T_new + T)/2
 
         if fo2_buffer !== nothing
-            out_mean = single_point_minimization(P, T_ave, data, X=bulk, Xoxides=bulk_ox, sys_in="wt", B = fo2_offset)
+            out_mean = single_point_minimization(P, T_ave, data, X=bulk, Xoxides=bulk_ox, sys_in="wt", B = fo2_offset,name_solvus=true )
         else
-            out_mean = single_point_minimization(P, T_ave, data, X=bulk, Xoxides=bulk_ox, sys_in="wt")
+            out_mean = single_point_minimization(P, T_ave, data, X=bulk, Xoxides=bulk_ox, sys_in="wt",name_solvus=true )
         end
     end
 
@@ -292,9 +292,9 @@ function AdiabaticDecompressionMelting(; comp :: Dict, T_start_C :: Union{Float6
     if Tp_C !== nothing
         rm_list = remove_phases(["liq"], Model)
         if fo2_buffer !== nothing
-            out = single_point_minimization(0.001, Tp_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, rm_list = rm_list)
+            out = single_point_minimization(0.001, Tp_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, rm_list = rm_list,name_solvus=true )
         else
-            out = single_point_minimization(0.001, Tp_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list)
+            out = single_point_minimization(0.001, Tp_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list,name_solvus=true )
         end
         s = out.entropy
     end
@@ -311,9 +311,9 @@ function AdiabaticDecompressionMelting(; comp :: Dict, T_start_C :: Union{Float6
     else
         T = T_start_C
         if fo2_buffer !== nothing
-            out = single_point_minimization(P[1], T_start_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset)
+            out = single_point_minimization(P[1], T_start_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset,name_solvus=true )
         else
-            out = single_point_minimization(P[1], T_start_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt")
+            out = single_point_minimization(P[1], T_start_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt",name_solvus=true )
         end
         s = out.entropy
     end
