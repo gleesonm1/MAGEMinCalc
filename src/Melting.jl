@@ -424,5 +424,6 @@ function AdiabaticDecompressionMelting(; comp :: Dict, T_start_C :: Union{Float6
     end
     Finalize_MAGEMin(data)
     Results_df = Dict(k => pytable(v) for (k, v) in Results)
+    Results_df = standardize_mineral_labels(Results_df)
 	return Results_df
 end
