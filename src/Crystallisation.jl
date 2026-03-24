@@ -218,6 +218,8 @@ function path(; comp :: Dict, T_start_C :: Union{Float64, Nothing} = nothing, T_
         P = range(P_start_bar, stop = P_start_bar - dp_bar * (length(T) - 1), length = length(T))
     elseif typeof(P) <: AbstractVector && isnothing(T_end_C) && !isnothing(dt_C)
         T = range(T_start_C, stop = T_start_C - dt_C * (length(P) - 1), length = length(P))
+    elseif typeof(P) <: AbstractVector && isnothing(T_end_C) && isnothing(dt_C) && isnothing(T_path_C)
+        T = range(T_start_C, stop = T_start_C, length = length(P))
     end
     
     if typeof(T) <: AbstractVector && typeof(P) <: AbstractVector && length(T) != length(P)

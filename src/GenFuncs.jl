@@ -83,37 +83,67 @@ function standardize_mineral_labels(output_dict::Dict)
     end
 
     # 3. Process the output_dict keys
+    # new_dict = Dict{String, Any}()
+    
+    # # We need to process base names (e.g., "mgt1") and their "_prop" counterparts together
+    # # Identify unique base keys by stripping numbers and "_prop"
+    # # Mapping: "original_base" => "new_base"
+    # rename_map = Dict{String, String}()
+    
+    # # Keep track of counts for each unified group (e.g., "spl" => 1, "spl" => 2)
+    # group_counters = Dict{String, Int}()
+
+    # # Get all unique phase-instance keys (e.g., "pl1", "mgt1", "usp1")
+    # # We ignore "_prop", "sys", and "Conditions" for the counting phase
+    # all_keys = collect(keys(output_dict))
+    # base_instances = unique([replace(k, "_prop" => "") for k in all_keys 
+    #                          if !occursin("_prop", k) && k != "sys" && k != "Conditions"])
+
+    # for orig_instance in base_instances
+    #     # Extract the prefix (letters) and suffix (numbers)
+    #     m = match(r"([a-zA-Z]+)([0-9]*)", orig_instance)
+    #     prefix = m.captures[1]
+        
+    #     if haskey(reverse_lookup, prefix)
+    #         target_group = reverse_lookup[prefix]
+            
+    #         # Increment counter for this group
+    #         group_counters[target_group] = get(group_counters, target_group, 0) + 1
+    #         new_instance = "$(target_group)$(group_counters[target_group])"
+            
+    #         rename_map[orig_instance] = new_instance
+    #     else
+    #         # If not in our mapping, keep it as is
+    #         rename_map[orig_instance] = orig_instance
+    #     end
+    # end
     new_dict = Dict{String, Any}()
-    
-    # We need to process base names (e.g., "mgt1") and their "_prop" counterparts together
-    # Identify unique base keys by stripping numbers and "_prop"
-    # Mapping: "original_base" => "new_base"
     rename_map = Dict{String, String}()
-    
-    # Keep track of counts for each unified group (e.g., "spl" => 1, "spl" => 2)
     group_counters = Dict{String, Int}()
 
-    # Get all unique phase-instance keys (e.g., "pl1", "mgt1", "usp1")
-    # We ignore "_prop", "sys", and "Conditions" for the counting phase
-    all_keys = collect(keys(output_dict))
+    # SORT the keys first. This is critical for consistency.
+    all_keys = sort(collect(keys(output_dict)))
+    
+    # Identify unique base instances (e.g., "pl1", "pig1")
     base_instances = unique([replace(k, "_prop" => "") for k in all_keys 
                              if !occursin("_prop", k) && k != "sys" && k != "Conditions"])
 
     for orig_instance in base_instances
-        # Extract the prefix (letters) and suffix (numbers)
-        m = match(r"([a-zA-Z]+)([0-9]*)", orig_instance)
+        # Extract letters (prefix) and ignore the old number
+        m = match(r"([a-zA-Z\-]+)", orig_instance) # Added \- to handle "K-nph"
         prefix = m.captures[1]
         
         if haskey(reverse_lookup, prefix)
             target_group = reverse_lookup[prefix]
             
-            # Increment counter for this group
+            # Increment counter for this unified group
             group_counters[target_group] = get(group_counters, target_group, 0) + 1
             new_instance = "$(target_group)$(group_counters[target_group])"
             
             rename_map[orig_instance] = new_instance
         else
-            # If not in our mapping, keep it as is
+            # If not in our mapping, we still need to ensure it doesn't 
+            # clash with our new numbering.
             rename_map[orig_instance] = orig_instance
         end
     end

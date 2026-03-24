@@ -289,26 +289,7 @@ function AdiabaticDecompressionMelting(; comp :: Dict, T_start_C :: Union{Float6
     Results = Dict()
     
     data = fo2_buffer !== nothing ? Initialize_MAGEMin(Model, verbose=false, buffer=fo2_buffer) : Initialize_MAGEMin(Model, verbose=false)
-    if Tp_C !== nothing
-        rm_list = remove_phases(["liq"], Model)
-        if fo2_buffer !== nothing
-            out = single_point_minimization(0.001, Tp_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, rm_list = rm_list,name_solvus=true )
-        else
-            out = single_point_minimization(0.001, Tp_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list,name_solvus=true )
-        end
-        s = out.entropy
-    end
-    
-    if Tp_C !== nothing
-        if fo2_buffer !== nothing
-            T, out = optimize_entropy_4T(Tp_C + 0.8*(P[1]*(100000)/(3300*9.81)), Tp_C, 
-                                    s, P[1], data, new_bulk, new_bulk_ox, 
-                                    fo2_buffer=fo2_buffer, fo2_offset = fo2_offset, Tp_search=true)
-        else
-            T, out = optimize_entropy_4T(Tp_C + 0.8*(P[1]*(100000)/(3300*9.81)), Tp_C,
-                                    s, P[1], data, new_bulk, new_bulk_ox, Tp_search=true)
-        end
-    else
+    if T_start_C !== nothing
         T = T_start_C
         if fo2_buffer !== nothing
             out = single_point_minimization(P[1], T_start_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset,name_solvus=true )
@@ -316,7 +297,21 @@ function AdiabaticDecompressionMelting(; comp :: Dict, T_start_C :: Union{Float6
             out = single_point_minimization(P[1], T_start_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt",name_solvus=true )
         end
         s = out.entropy
+    elseif Tp_C !== nothing
+        rm_list = remove_phases(["liq"], Model)
+        if fo2_buffer !== nothing
+            out = single_point_minimization(0.001, Tp_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, rm_list = rm_list,name_solvus=true )
+            T, out = optimize_entropy_4T(Tp_C + 0.8*(P[1]*(100000)/(3300*9.81)), Tp_C, 
+                                    s, P[1], data, new_bulk, new_bulk_ox, 
+                                    fo2_buffer=fo2_buffer, fo2_offset = fo2_offset, Tp_search=true)
+        else
+            out = single_point_minimization(0.001, Tp_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list,name_solvus=true )
+            T, out = optimize_entropy_4T(Tp_C + 0.8*(P[1]*(100000)/(3300*9.81)), Tp_C,
+                                    s, P[1], data, new_bulk, new_bulk_ox, Tp_search=true)
+        end
+        s = out.entropy
     end
+
 
     # Results["Conditions"] = DataFrame(T_C = zeros(length(P)), P_kbar = zeros(length(P)),s = zeros(length(P)));
     Results["Conditions"] = DataFrame(Symbol("T_C") => zeros(length(P)), 
