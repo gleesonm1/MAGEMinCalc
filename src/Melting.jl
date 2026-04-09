@@ -301,11 +301,13 @@ function AdiabaticDecompressionMelting(; comp :: Dict, T_start_C :: Union{Float6
         rm_list = remove_phases(["liq"], Model)
         if fo2_buffer !== nothing
             out = single_point_minimization(0.001, Tp_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, rm_list = rm_list,name_solvus=true )
+            s = out.entropy
             T, out = optimize_entropy_4T(Tp_C + 0.8*(P[1]*(100000)/(3300*9.81)), Tp_C, 
                                     s, P[1], data, new_bulk, new_bulk_ox, 
                                     fo2_buffer=fo2_buffer, fo2_offset = fo2_offset, Tp_search=true)
         else
             out = single_point_minimization(0.001, Tp_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list,name_solvus=true )
+            s = out.entropy
             T, out = optimize_entropy_4T(Tp_C + 0.8*(P[1]*(100000)/(3300*9.81)), Tp_C,
                                     s, P[1], data, new_bulk, new_bulk_ox, Tp_search=true)
         end
