@@ -37,7 +37,7 @@ function multi_path_julia(args::Dict)
 
     Model              = get(args_sym, :Model, nothing)
     bulk               = get(args_sym, :bulk, nothing)
-    comp               = get(args_sym, :comp, nothing)
+    comp           = get(args_sym, :comp, nothing)
 
     Frac_solid         = get(args_sym, :Frac_solid, nothing)
     Frac_fluid         = get(args_sym, :Frac_fluid, nothing)
@@ -73,8 +73,14 @@ function multi_path_julia(args::Dict)
         # Use pmap (Parallel Map) to run 'path' on different workers
         # This is cleaner for returning a list of results
         results_list = pmap(1:len) do i
+            current_comp = if comp isa Dict
+                comp
+            else
+                comp[i]
+            end
+
             path(
-                comp = comp, T_start_C = T_start_C[i], T_end_C = T_end_C[i], dt_C = dt_C[i], T_C = T_C[i],
+                comp = current_comp, T_start_C = T_start_C[i], T_end_C = T_end_C[i], dt_C = dt_C[i], T_C = T_C[i],
                 P_start_bar = P_start_bar[i], P_end_bar = P_end_bar[i], dp_bar = dp_bar[i], 
                 P_bar = P_bar[i], 
                 frac_xtal = Frac_solid, Model = Model,
