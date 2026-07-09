@@ -398,6 +398,8 @@ function equilibrate(; bulk :: Any, P_kbar :: Vector{Float64}, T_C :: Vector{Flo
 
     Finalize_MAGEMin(data)
     Results_df = Dict(k => pytable(v) for (k, v) in Results)
+    Results_df = standardize_mineral_labels(Results_df)
+    # println(keys(Results_df))
     return Results_df
 end
 
