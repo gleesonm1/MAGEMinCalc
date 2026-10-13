@@ -107,6 +107,307 @@ function findliq(; bulk :: Vector{Float64}, P_kbar :: Float64, T_start_C :: Floa
     return T_Liq
 end
 
+"""
+    findLiq_julia(; bulk, P_kbar, T_start_C, Model="ig", fo2_buffer=nothing,
+                  fo2_offset=0.0, suppress=nothing, bracket_step_C=25.0,
+                  max_bracket_expansions=8, max_bisection_iters=15, T_tol_C=0.25)
+
+Vectorised liquidus-temperature search for a BATCH of points, each with its
+own bulk composition, pressure, and starting temperature guess. Designed to
+be called directly from Python (PetThermoTools's `findLiq_multi`) for
+batches of 1000s of real compositions, AND (later) from MAGEMinCalc's own
+`path`/`path_main` for a single isolated liquidus lookup -- N=1 is simply a
+length-1 vector, so there is no special-casing anywhere below for the
+single-point vs batch case; both are the exact same code path.
+
+Deliberately separate from `findliq` (above: the existing, slow, single-
+point, fixed-1400C step-search) and from the existing, broken, unused
+`findLiq_multi(bulk, P_kbar, T_start_C)` (below: references `Model`/
+`fo2_buffer` without taking them as parameters) -- neither is touched or
+replaced by this function. See PetThermoTools/MAINTENANCE_NOTES.md
+(2026-10-10, "MAGEMin liquidus search") for the design rationale and
+verification results.
+
+Uses `multi_point_minimization`, which natively supports a DIFFERENT bulk
+composition per point (its own docstring's "Example 3") and parallelises
+internally across points via Julia threads, all within ONE shared
+`Initialize_MAGEMin`/`Finalize_MAGEMin` context for the whole batch --
+unlike alphaMELTS, MAGEMin_C needs no per-task process isolation, so no
+Python-side multiprocessing is involved in calling this, and (unlike
+`multi_path_julia`/`barometry`) no `Distributed`/`pmap` either -- the
+parallelism is internal to the one call, across Julia threads, not across
+separate worker processes. Needs `PYTHON_JULIACALL_THREADS` (or
+`JULIA_NUM_THREADS`) set before `juliacall`'s first import on the Python
+side for that internal thread-parallelism to actually have more than one
+thread to use -- see `_ensure_julia_ready()` in PetThermoTools/GenFuncs.py.
+
+Algorithm, per point, fully bounded (never an open-ended loop):
+1. Bracket establishment: starting from T_start_C, classify (pure liquid+
+   fluid, i.e. at/above the liquidus, vs some solid present, i.e. below),
+   then step away from the known side (doubling the step each time,
+   starting at `bracket_step_C`) until the classification flips, giving a
+   (T_lo, T_hi) bracket, T_lo < T_hi. A point that never flips within
+   `max_bracket_expansions` steps is marked `converged=false` and dropped --
+   never retried indefinitely.
+2. Bisection: `T_mid = (T_lo+T_hi)/2` for every still-active point in ONE
+   `multi_point_minimization` call per iteration; update brackets; drop a
+   point once its own bracket width is below `T_tol_C`. Stops after
+   `max_bisection_iters` regardless of remaining width.
+3. ONE final `multi_point_minimization` call AT `T_lo` (not `T_hi`) for
+   every converged point -- matching alphaMELTS's own `findLiq_MELTS`
+   convention of reporting the highest temperature at which solid is
+   *already* present (i.e. the first point *just below* the liquidus, not
+   the last point confirmed solid-free above it) -- recovers
+   `liquidus_phase` (the first solid phase present, explicitly excluding
+   "liq"/"fl"), `fluid_saturated`, and the liquid ("liq") phase's own
+   `Comp_wt` at that point (very slightly evolved from the bulk, since a
+   small amount of solid has already formed there -- this is deliberately
+   NOT assumed equal to the bulk, it is read back from MAGEMin_C itself,
+   the same way `equilibrate` above extracts any phase's composition via
+   `out[k].PP_vec[i].Comp_wt`/`out[k].SS_vec[j].Comp_wt`).
+
+Returns a `Dict{String,Any}` with one entry per FIELD (not one entry per
+point -- easier for a Python caller to turn directly into DataFrame
+columns): "T_Liq_C" (NaN, not a fake sentinel like 0.0, for anything that
+did not converge -- directly avoiding the exact bug already fixed on the
+MELTS side of this package), "converged" (Bool), "liquidus_phase" (String,
+"" if not converged), "fluid_saturated" (Bool), "T_bracket_width_C"
+(Float64, NaN if not converged -- a useful QC signal: a converged-but-wide
+bracket means `T_tol_C` was not actually reached within
+`max_bisection_iters`), "liquid_oxides" (Vector{String}, the oxide names
+`liquid_comp` is ordered by -- shared across all points of one call),
+"liquid_comp" (Vector{Vector{Float64}}, one row per point in `liquid_oxides`
+order, NaN-filled for a point that did not converge).
+"""
+function findLiq_julia(; bulk, P_kbar::Vector{Float64}, T_start_C::Vector{Float64},
+    Model::String = "ig", fo2_buffer::Union{String,Nothing} = nothing,
+    fo2_offset::Union{Vector{Float64},Float64,Nothing} = 0.0,
+    suppress::Union{Vector{String},Nothing} = nothing,
+    bracket_step_C::Float64 = 25.0, max_bracket_expansions::Int = 8,
+    max_bisection_iters::Int = 15, T_tol_C::Float64 = 0.25)
+
+    n = length(P_kbar)
+    @assert length(T_start_C) == n "P_kbar and T_start_C must be the same length"
+
+    # --- bulk normalisation: exactly equilibrate's convention, EXCEPT we
+    # always take a fresh copy of each row. equilibrate's own "else: new_bulk
+    # = bulk" aliases the caller's array; this function then mutates row[9]
+    # in place for fo2_buffer, which silently corrupts the caller's bulk
+    # vector for any later call (confirmed: a buffered call followed by a
+    # plain call that reuses the same bulk object inherits the row[9]=10
+    # placeholder and returns garbage -- every phase assemblage comes back
+    # wrong, even at absurd temperatures, because the "bulk" is no longer
+    # the real composition). Copying costs nothing (10-11 floats per row)
+    # and makes this function safe to call repeatedly on the same bulk
+    # object -- required for use case (ii), isolated per-step liquidus calls
+    # from path()/crystallisation code that likely reuse one evolving bulk
+    # vector across many calls. (equilibrate has the identical latent bug;
+    # left untouched here, flagged separately.)
+    if isa(bulk, Matrix{<:AbstractFloat})
+        new_bulk = [copy(bulk[i, :]) for i in 1:size(bulk, 1)]
+    else
+        new_bulk = [copy(row) for row in bulk]
+    end
+    @assert length(new_bulk) == n "bulk must have one row/vector per point"
+
+    if fo2_offset === nothing
+        fo2_offset = 0.0
+    end
+    if fo2_buffer !== nothing
+        # "O" (ferric-iron proxy, index 9 in the 11-oxide order below) becomes
+        # irrelevant once a buffer sets the oxidation state itself, but must
+        # still be nonzero -- same placeholder convention as
+        # equilibrate/path_main (copied, not reinvented).
+        for row in new_bulk
+            row[9] = 10
+        end
+        if !(fo2_offset isa Vector)
+            fo2_offset = fill(fo2_offset, n)
+        end
+    end
+
+    # --- Model name mapping: exactly equilibrate's convention ---
+    Model_mapped = Model == "Weller2024" ? "igad" : "ig"
+
+    if Model_mapped == "ig"
+        new_bulk_ox = ["SiO2", "Al2O3", "CaO", "MgO", "FeO", "K2O", "Na2O", "TiO2", "O", "Cr2O3", "H2O"]
+    else
+        new_bulk_ox = ["SiO2", "Al2O3", "CaO", "MgO", "FeO", "K2O", "Na2O", "TiO2", "O", "Cr2O3"]
+    end
+
+    rm_list = suppress !== nothing ? remove_phases(suppress, Model_mapped) : nothing
+
+    data = fo2_buffer !== nothing ? Initialize_MAGEMin(Model_mapped, verbose=false, buffer=fo2_buffer) :
+                                      Initialize_MAGEMin(Model_mapped, verbose=false)
+
+    LiqFluid = ["liq", "fl"]
+
+    function run_minimization(idx_active::Vector{Int}, T_active::Vector{Float64})
+        P_active = P_kbar[idx_active]
+        X_active = new_bulk[idx_active]
+        kwargs = Dict{Symbol,Any}(:X => X_active, :Xoxides => new_bulk_ox, :sys_in => "wt", :name_solvus => true,
+                                   :progressbar => false)
+        if fo2_buffer !== nothing
+            kwargs[:B] = fo2_offset[idx_active]
+        end
+        if rm_list !== nothing
+            kwargs[:rm_list] = rm_list
+        end
+        return multi_point_minimization(P_active, T_active, data; kwargs...)
+    end
+
+    # Lightweight classification used repeatedly during bracketing/bisection:
+    # just above/below, nothing else extracted (cheap -- called many times).
+    function classify(idx_active::Vector{Int}, T_active::Vector{Float64})
+        out = run_minimization(idx_active, T_active)
+        above = falses(length(idx_active))
+        for k in eachindex(idx_active)
+            PhaseList = copy(out[k].ph)
+            if fo2_buffer !== nothing
+                filter!(x -> x != fo2_buffer, PhaseList)
+            end
+            above[k] = length(intersect(LiqFluid, PhaseList)) == length(PhaseList)
+        end
+        return above
+    end
+
+    T_lo = fill(NaN, n)
+    T_hi = fill(NaN, n)
+    bracketed = falses(n)
+
+    # --- Phase 1: bracket establishment ---
+    active = collect(1:n)
+    T_current = copy(T_start_C)
+    step = fill(bracket_step_C, n)
+
+    above0 = classify(active, T_current[active])
+    for (k, idx) in enumerate(active)
+        if above0[k]
+            T_hi[idx] = T_current[idx]
+        else
+            T_lo[idx] = T_current[idx]
+        end
+    end
+
+    for expansion in 1:max_bracket_expansions
+        active = [idx for idx in active if !bracketed[idx]]
+        isempty(active) && break
+
+        for idx in active
+            if !isnan(T_hi[idx]) && isnan(T_lo[idx])
+                T_current[idx] = T_hi[idx] - step[idx]   # know "above"; probe down
+            elseif !isnan(T_lo[idx]) && isnan(T_hi[idx])
+                T_current[idx] = T_lo[idx] + step[idx]    # know "below"; probe up
+            end
+            step[idx] *= 2
+        end
+
+        above = classify(active, T_current[active])
+        for (k, idx) in enumerate(active)
+            if above[k]
+                T_hi[idx] = T_current[idx]
+            else
+                T_lo[idx] = T_current[idx]
+            end
+            if !isnan(T_lo[idx]) && !isnan(T_hi[idx])
+                bracketed[idx] = true
+            end
+        end
+    end
+
+    # points that never bracketed: give up cleanly, never retried indefinitely
+    for idx in 1:n
+        if !bracketed[idx]
+            T_lo[idx] = NaN
+            T_hi[idx] = NaN
+        end
+    end
+
+    # --- Phase 2: bisection narrowing ---
+    active = [idx for idx in 1:n if bracketed[idx]]
+    for iter in 1:max_bisection_iters
+        active = [idx for idx in active if (T_hi[idx] - T_lo[idx]) >= T_tol_C]
+        isempty(active) && break
+
+        T_mid = [(T_lo[idx] + T_hi[idx]) / 2 for idx in active]
+        above = classify(active, T_mid)
+        for (k, idx) in enumerate(active)
+            if above[k]
+                T_hi[idx] = T_mid[k]
+            else
+                T_lo[idx] = T_mid[k]
+            end
+        end
+    end
+
+    # --- Final extraction, AT T_lo (just below the liquidus -- matches
+    # findLiq_MELTS's own "first point with solid present" convention) ---
+    converged = bracketed  # alias: every bracketed point reached phase 2 and has a usable T_lo
+    liquidus_phase = fill("", n)
+    fluid_saturated = falses(n)
+    liquid_oxides = String[]
+    liquid_comp = [fill(NaN, 0) for _ in 1:n]
+
+    final_active = [idx for idx in 1:n if converged[idx]]
+    if !isempty(final_active)
+        out = run_minimization(final_active, T_lo[final_active])
+        for (k, idx) in enumerate(final_active)
+            PhaseList = copy(out[k].ph)
+            if fo2_buffer !== nothing
+                filter!(x -> x != fo2_buffer, PhaseList)
+            end
+            Type = out[k].ph_type
+            Oxides = out[k].oxides
+            if isempty(liquid_oxides)
+                liquid_oxides = string.(Oxides)
+            end
+
+            fluid_saturated[idx] = "fl" in PhaseList
+            solids = [p for p in PhaseList if p != "liq" && p != "fl"]
+            liquidus_phase[idx] = isempty(solids) ? "" : string(first(solids))
+
+            i, j = 0, 0
+            for index in eachindex(PhaseList)
+                phase_name = string(PhaseList[index])
+                if Type[index] == 0
+                    i += 1
+                    if phase_name == "liq"
+                        liquid_comp[idx] = copy(out[k].PP_vec[i].Comp_wt)
+                    end
+                else
+                    j += 1
+                    if phase_name == "liq"
+                        liquid_comp[idx] = copy(out[k].SS_vec[j].Comp_wt)
+                    end
+                end
+            end
+        end
+    end
+    if isempty(liquid_oxides)
+        liquid_oxides = new_bulk_ox  # no point converged at all -- fall back to the input oxide order
+    end
+    for idx in 1:n
+        if isempty(liquid_comp[idx])
+            liquid_comp[idx] = fill(NaN, length(liquid_oxides))
+        end
+    end
+
+    Finalize_MAGEMin(data)
+
+    T_Liq_C = [converged[idx] ? T_lo[idx] : NaN for idx in 1:n]
+    T_bracket_width_C = [converged[idx] ? (T_hi[idx] - T_lo[idx]) : NaN for idx in 1:n]
+
+    return Dict(
+        "T_Liq_C" => T_Liq_C,
+        "converged" => converged,
+        "liquidus_phase" => liquidus_phase,
+        "fluid_saturated" => fluid_saturated,
+        "T_bracket_width_C" => T_bracket_width_C,
+        "liquid_oxides" => liquid_oxides,
+        "liquid_comp" => liquid_comp,
+    )
+end
+
 function path(; comp :: Dict, T_start_C :: Union{Float64, Nothing} = nothing, T_end_C :: Union{Float64, Nothing} = nothing, dt_C :: Union{Float64, Nothing} = nothing, T_C :: Union{Float64, Nothing} = nothing, T_min_C :: Union{Float64, Nothing} = nothing,
             P_start_bar :: Union{Float64, Nothing} = nothing, P_end_bar :: Union{Float64, Nothing} = nothing, dp_bar :: Union{Float64, Nothing} = nothing, P_bar :: Union{Float64, Nothing} = nothing, T_path_C :: Union{Vector{Float64}, Nothing} = nothing,
             P_path_bar :: Union{Vector{Float64}, Nothing} = nothing, frac_xtal :: Union{Float64, Bool, Nothing} = false, 
@@ -257,26 +558,29 @@ function path(; comp :: Dict, T_start_C :: Union{Float64, Nothing} = nothing, T_
 end
 
 function equilibrate(; bulk :: Any, P_kbar :: Vector{Float64}, T_C :: Vector{Float64},
-    fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Vector{Float64},Float64, Nothing} = 0.0, 
-    Model :: String = "ig")
+    fo2_buffer :: Union{String, Nothing} = nothing, fo2_offset :: Union{Vector{Float64},Float64, Nothing} = 0.0,
+    Model :: String = "ig", suppress :: Union{Vector{String},Nothing} = nothing)
+        # Always copy each row rather than aliasing the caller's own bulk
+        # array -- same fix as findLiq_julia (see that function's own
+        # comment for the full story): without this, the row[9] = 10
+        # fo2_buffer placeholder mutation below permanently corrupts the
+        # caller's array, silently breaking any later call that reuses it
+        # (e.g. a buffered call followed by an unbuffered one on the same
+        # bulk vector). This was flagged as a known latent bug here and
+        # left unfixed while only findLiq_julia needed it; fixing it now
+        # while adding suppress support, since both touch this exact code.
         if isa(bulk, Matrix{<:AbstractFloat})
-            new_bulk = [bulk[i, :] for i in 1:size(bulk, 1)]
+            new_bulk = [copy(bulk[i, :]) for i in 1:size(bulk, 1)]
         else
-            new_bulk = bulk
+            new_bulk = [copy(row) for row in bulk]
         end
-    
+
         if fo2_buffer !== nothing
-            if isa(new_bulk, Matrix{<:AbstractFloat})
-                new_bulk[:, 9] .= 10
-            elseif isa(new_bulk, Vector{<:AbstractVector})
-                for row in new_bulk
-                    row[9] = 10
-                end
-            else
-                error("Unsupported format for new_bulk")
+            for row in new_bulk
+                row[9] = 10
             end
         end
-    
+
         if fo2_offset === nothing
             fo2_offset = 0.0
         end
@@ -290,22 +594,35 @@ function equilibrate(; bulk :: Any, P_kbar :: Vector{Float64}, T_C :: Vector{Flo
         else
             Model = "ig"
         end
-    
-        
+
+
         if Model === "ig"
         	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"];
         else
         	new_bulk_ox = ["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"];
         end
-    
+
+        # Same pattern as path_main's own suppress handling: compute
+        # rm_list once (Model is already the mapped "ig"/"igad" name by
+        # this point), then branch at the one minimization call site.
+        rm_list = suppress !== nothing ? remove_phases(suppress, Model) : nothing
+
         if fo2_buffer !== nothing
             data = Initialize_MAGEMin(Model, verbose = false, buffer = fo2_buffer)
-            out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, name_solvus=true )
+            if suppress !== nothing
+                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, rm_list = rm_list, name_solvus=true )
+            else
+                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", B = fo2_offset, name_solvus=true )
+            end
         else
             data = Initialize_MAGEMin(Model, verbose = false)
-            out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", name_solvus=true )
+            if suppress !== nothing
+                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", rm_list = rm_list, name_solvus=true )
+            else
+                out = multi_point_minimization(P_kbar, T_C, data, X = new_bulk, Xoxides = new_bulk_ox, sys_in = "wt", name_solvus=true )
+            end
         end
-    
+
     
     new_bulk_ox_saved =  new_bulk_ox #["SiO2"; "Al2O3"; "CaO"; "MgO"; "FeO"; "K2O"; "Na2O"; "TiO2"; "O"; "Cr2O3"; "H2O"]
     Results = Dict()
